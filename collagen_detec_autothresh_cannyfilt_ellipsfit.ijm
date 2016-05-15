@@ -34,7 +34,7 @@ image_width = getWidth();
 image_area = image_height * image_width; 
 
 
-selectWindow(image + " (RGB)");
+selectWindow(image);
 run("Duplicate...", "title=img");
 selectWindow("img");
 rename("image_modifs");

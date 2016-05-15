@@ -41,7 +41,7 @@ image_area = image_height * image_width;
 Image copy
 */
 
-selectWindow(image + " (RGB)");
+selectWindow(image);
 run("Duplicate...", "title=img");
 selectWindow("img");
 rename("image_modifs");
