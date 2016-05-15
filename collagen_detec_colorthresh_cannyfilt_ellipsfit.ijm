@@ -226,7 +226,7 @@ for (i=max_minus_std_pos; i<=max_plus_std_pos; i++){
 mean_peak_angle = sum_val_peak/values_in_std_itv;
 
 chr = (values_in_std_itv * 100)/(lengthOf(angle_array));
-print ("values in the max +/- std range : " + values_in_std_itv + " soit " + round(chr) + "% of the measured angles");
+print ("values in the max +/- std range : " + values_in_std_itv + " corresponding to " + round(chr) + "% of the measured angles");
 print("Number of quantified angles : " + lengthOf(angle_array));
 print("Average angle (total) : " + round(mean));
 print("Aveage angle (of values in peak range) : " + round(mean_peak_angle));
