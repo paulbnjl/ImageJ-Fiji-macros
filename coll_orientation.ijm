@@ -12,8 +12,8 @@ Author : Paul Bonijol
 License : GNU/GPL v3
 May 2016
 Best suited for high resolution, high contrast microscope images
-(for instance, 4000x4000px .tif, with tissue stained by, say, 
-picrosirius red)
+(for instance, 20x magnification <-> 4000x4000px .tif, with tissue 
+stained by, say, picrosirius red)
 */
 
 /*
@@ -436,21 +436,43 @@ macro " assisted collagen orientation assessment" {
 		selectWindow("Results");
 		run("Close");
 
+		//print("Grey min value : " + GREY_MIN);
+		//print("Grey max value : " + GREY_MAX);
+
 		SIGMA = (REF_FIBER_LENGTH/(2 * sqrt(3))) + 0.5;
 		HIGH_CONTRAST = ( 0.17 * (2 * GREY_MAX * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
 		LOW_CONTRAST = ( 0.17 * (2 * GREY_MIN * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
 		run("Ridge Detection", "line_width=REF_FIBER_LENGTH high_contrast=GREY_MAX low_contrast=GREY_MIN darkline correct_position estimate_width extend_line show_ids displayresults add_to_manager method_for_overlap_resolution=SLOPE sigma=SIGMA lower_threshold=LOW_CONTRAST upper_threshold=HIGH_CONTRAST");			
 
+		/*
+		The plugin results table return multiple entries per contour
+		Here we process a little to count only the number of contours
+		(assuming it's equal to the number of detected objects)
+		*/
 		selectWindow("Results");
-		NUMBER_OF_FIBER_DETECTED = nResults();
 		fiber_width_array = newArray("fiberwidth");
+		NUMBER_OF_FIBER_DETECTED = 0;
 		for (h=0; h<nResults; h++){
 			fiberwidth = getResult("Line width", h);
+			if (h != 0){
+				contour_ID_prev = contourID;			
+				}
+			else {
+				contour_ID_prev = 0;				
+				}
+			contourID = getResult("Contour ID", h);
 			fiber_width_array_temp = newArray(lengthOf(fiber_width_array)+1);
 			for (d=0; d<lengthOf(fiber_width_array);d++){
 				fiber_width_array_temp[d]=fiber_width_array[d];
 				}
-			fiber_width_array_temp[lengthOf(fiber_width_array)-1]=fiberwidth; 
+			if (contourID != contour_ID_prev){
+				fiber_width_array_temp[lengthOf(fiber_width_array)-1]=fiberwidth;
+				NUMBER_OF_FIBER_DETECTED += 1;
+				}
+			else {
+				continue;
+				}
+			 
 			fiber_width_array = fiber_width_array_temp;
 		}
 
@@ -607,13 +629,22 @@ macro " assisted collagen orientation assessment" {
 		//Plot.setColor("red");
 		//Plot.show();
 
-	}
+	
 	/*
 	Will be effective after I set a working folder for saving results
 	in a xls/csv sheet or something like that
-	while (nImages>0) { 
-		selectImage(nImages); 
-		close(); 
+	*/
+	//while (nImages>0) { 
+	//	selectImage(nImages); 
+	//	close(); 
 		}
-	*/ 
+	// selectWindow("ROI Manager");
+	//run("Close");
+	//selectWindow("Directionality analysis for DUP_ROI" + a + "(using Local gradient orientation)");
+	//run("Close");
+	//selectWindow("Directionality histograms for DUP_ROI" + a + "(using Local gradient orientation)");
+	//run("Close");
+	//selectWindow("Directionality for DUP_ROI" + a + "(using Local gradient orientation)");
+	//run("Close");
+	}
 }
