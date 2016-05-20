@@ -7,19 +7,20 @@
 
 /*
 Macro : assisted collagen orientation and distribution assessment
-Version : 0.0.1
+Version : 0.0.2
 Author : Paul Bonijol
 License : GNU/GPL v3
 May 2016
+
 Best suited for high resolution, high contrast microscope images
 (for instance, 20x magnification <-> 4000x4000px .tif, with tissue 
-stained by, say, picrosirius red)
+stained by, for instance, picrosirius red)
 */
 
 /*
-In order to work, this need the directionality module :
+In order to work, this macro requires the directionality plugin :
 http://imagej.net/Directionality (included in fiji)
-And the ridge detection plugin :
+And also the ridge detection plugin :
 http://imagej.net/Ridge_Detection
 
 For more informations on how these plugin are working, please consult :
@@ -66,6 +67,10 @@ macro " assisted collagen orientation assessment" {
 	image = getTitle();
 	selectWindow(image);
 	run("RGB Color");
+	selectWindow(image);
+	run("Close");
+	selectWindow(image + " (RGB)");
+	rename("image_base");
 	image_height = getHeight();
 	image_width = getWidth();
 	image_area = image_height * image_width;
@@ -83,14 +88,14 @@ macro " assisted collagen orientation assessment" {
 	/* 
 	Epithelium (or any reference angle really) retrieval
 	idea : draw a line, measure the angle between this line
-	and the normal (x,y) plane of the image
+	and the normal (x,y) horizontal axis of the image
 	the negative value of this angle will serve as a reference
 	afterwards		
 	*/
 	
 	setTool("line"); 
 
-	waitForUser( "Draw a line in the reference axis and then press OK.");
+	waitForUser( "Draw a line as the reference axis and then press OK.");
 	while ((selectionType() !=5)){
 		setTool("line");
 		}
@@ -141,12 +146,20 @@ macro " assisted collagen orientation assessment" {
 	*/
 
 	Dialog.create("Number of ROIs");
-	Dialog.addNumber("Number of ROIs : ", 1); 
+	Dialog.addNumber("Number of ROIs : ", 1);
 	Dialog.show();
 	ROI_number = Dialog.getNumber();
 
+	/* 
+	If we keep the RGB image, directionality will be applied for each color canal
+	and thus add a useless complexity layer to the results
+	to avoid that we convert the image to grayscale		
+	*/
+		
+	run("8-bit");
+
 	for (a=1;a<=ROI_number;a++){
-		selectWindow(image);
+		selectWindow("image_base");
 
 		/*
 		Ask the user to set the ROI center ; a polygon will be draw around
@@ -154,7 +167,7 @@ macro " assisted collagen orientation assessment" {
 		
 		setTool("multipoint");
 
-		waitForUser( "Click on the image to pinpoint the ROI and press enter.");
+		waitForUser( "Click on the image to center the ROI and press enter.");
 		while ((selectionType() !=10)){
 			setTool("multipoint");
 			}
@@ -212,15 +225,14 @@ macro " assisted collagen orientation assessment" {
 		This square is smaller, but still in the first one perimeter
 		As we want to focus on the important area, which is more likely
 		to be located at the center of the initial selection, while the
-		most excentered regions of the ROI are more prone to contain unrelated 
-		elements
+		most excentered regions of the ROI are more prone to contain 
+		unrelated elements
 		This will allow to calculate an occupation parameter
-		Idea : this square will be thresholded, 
-		and after binarizing it an occupation index will be
-		calculated with the blank (background) / black (foreground)
-		pixels ratio
+		Idea : this square will be thresholded (IsoData), then
+		an occupation index will be calculated with the black 
+		(foreground) / total area ratio
 		*/
-		selectWindow(image);
+		selectWindow("image_base");
 		x5 = ROI_center_x - ((ROI_size_dx)/2);
 		y5 = ROI_center_y;
 
@@ -241,28 +253,24 @@ macro " assisted collagen orientation assessment" {
 
 		run("Duplicate...", "title=ROI_area");
 		selectWindow("ROI" + a);
-
-		/* 
-		If we keep the RGB image, directionality will be applied for each color canal
-		and thus add a useless complexity layer to the results
-		to avoid that we convert the image to grayscale		
-		*/
-		
-		run("8-bit");
 		
 		/* 
 		Directionality analysis
-		data_points and data_points_inv are the min and max bin range values
+		data_points and data_points_start are the min and max bin range values
 		Separating these parameters from the base command may be more handy in the future
 		*/
 	
 		data_points = 90;
-		data_points_inv = -90;
-		run("Directionality", "method=[Local gradient orientation] nbins=data_points histogram=data_points_inv display_table");
+		data_points_start = -90;
+		run("Directionality", "method=[Local gradient orientation] nbins=data_points histogram=data_points_start display_table");
 				
 		/* 
 		Generated data table
-		Now we select the generated results table and extract each column as independant arrays		
+		Now we select the generated results table and extract each column as independant arrays
+		Since we can't anticipate the number of values (well in this case yes, because we define a range,
+		so, as a general rule...), and the arrray functions of the IMJ lacks several features...
+		We initiate arrays by one arbitrary value, then we will create new values with values +1 each
+		loop passage and after the loop, we split the array from the first value
 		*/
 
 		selectWindow("Directionality histograms for DUP_ROI" + a + " (using Local gradient orientation)");
@@ -277,7 +285,8 @@ macro " assisted collagen orientation assessment" {
 		degreechar = fromCharCode(0xB0); 		
 		
 		/* 
-		Another dirty workaround : directionality is sometime too slow and the macro run too fast for the results to be displayed
+		Another dirty workaround : directionality is sometime too slow and the macro run too fast for the results windows to 
+		be displayed in time
 		*/		
 		wait(100);
 
@@ -342,7 +351,11 @@ macro " assisted collagen orientation assessment" {
 		
 		direction_array_corrected = newArray(lengthOf(direction_array));
 		for (i=0;i<lengthOf(direction_array_corrected);i++){
-			direction_array_corrected[i] = direction_array[i] + epth_amount_inv;
+			direction_array_corrected[i] = direction_array[i];
+			//if (direction_array_corrected[i]<0){
+			//	direction_array_corrected[i] = - direction_array_corrected[i];
+			//	}
+			direction_array_corrected[i] += epth_amount_inv;
 			}
 
 		/* 
@@ -382,11 +395,12 @@ macro " assisted collagen orientation assessment" {
 		then same with the black area
 		then calculate the ratio
 		*/
+		
 		wait(100);
 		selectWindow("ROI_area");
 		TOTAL_AREA = getHeight()*getWidth();
 		run("8-bit");
-		run("Auto Threshold", "method=MinError(I) white");
+		run("Auto Threshold", "method=IsoData white");
 		run("Set Measurements...", "area redirect=None decimal=3");		
 		run("Create Selection");
 		run("Make Inverse");
@@ -401,12 +415,12 @@ macro " assisted collagen orientation assessment" {
 
 		/*
 		Ridge detection
-		Don't know exactly how it work, but it is !
+		Don't know exactly how it work, but it is doing quite well !
 		More information on this : 
 		https://en.wikipedia.org/wiki/Ridge_detection
 		http://imagej.net/Ridge_Detection
-		for collagen detection, we fix some parameters like the SLOPE
-		and we have to only enter the fiber length and the min/max contrast really
+		for collagen detection, we define some parameters like the SLOPE
+		and thus we have to only enter the fiber length and the min/max contrast really
 		for the length, we will ask the user to draw a line
 		and for the contrast, we will evaluate it automatically
 		*/
@@ -414,7 +428,7 @@ macro " assisted collagen orientation assessment" {
 		wait(100);		
 		selectWindow("ROI" + a);
 		run("Select None");		
-		run("8-bit");		
+		run("8-bit");
 		run("Set Measurements...", "min redirect=None decimal=3");
 		run("Measure");
 		GREY_MIN = getResult("Min", 0);
@@ -429,30 +443,61 @@ macro " assisted collagen orientation assessment" {
 		while ((selectionType() !=5)){
 			setTool("line");
 		}
-		run("Set Measurements...", "  redirect=None decimal=3");
+		run("Set Measurements...", " min redirect=None decimal=3");
 		run("Measure");
 		REF_FIBER_LENGTH = getResult("Length",0);
 		run("Clear Results");
 		selectWindow("Results");
 		run("Close");
+		
+		/*
+		Ridge detection parameters calculation
+		Only setting the min grey and max grey valuues
+		seems useful, hence the commented code lines
+		*/
+		
+		//SIGMA = (REF_FIBER_LENGTH/(2 * sqrt(3))) + 0.5;
+		//HIGH_CONTRAST = ( 0.17 * (2 * GREY_MAX * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
+		//LOW_CONTRAST = ( 0.17 * (2 * GREY_MIN * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
 
-		//print("Grey min value : " + GREY_MIN);
-		//print("Grey max value : " + GREY_MAX);
+		//run("Ridge Detection", "line_width=REF_FIBER_LENGTH high_contrast=GREY_MAX low_contrast=GREY_MIN 
+		//darkline correct_position estimate_width extend_line show_ids displayresults add_to_manager 
+		//method_for_overlap_resolution=SLOPE sigma=SIGMA lower_threshold=LOW_CONTRAST upper_threshold=HIGH_CONTRAST");
 
-		SIGMA = (REF_FIBER_LENGTH/(2 * sqrt(3))) + 0.5;
-		HIGH_CONTRAST = ( 0.17 * (2 * GREY_MAX * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
-		LOW_CONTRAST = ( 0.17 * (2 * GREY_MIN * (REF_FIBER_LENGTH/2)) / (sqrt(2*PI) * pow(SIGMA,3) ) ) * exp(-(pow((REF_FIBER_LENGTH/2),2))/(2*pow(SIGMA,2)));
-		run("Ridge Detection", "line_width=REF_FIBER_LENGTH high_contrast=GREY_MAX low_contrast=GREY_MIN darkline correct_position estimate_width extend_line show_ids displayresults add_to_manager method_for_overlap_resolution=SLOPE sigma=SIGMA lower_threshold=LOW_CONTRAST upper_threshold=HIGH_CONTRAST");			
-
+		run("Ridge Detection", "line_width=REF_FIBER_LENGTH high_contrast=GREY_MAX low_contrast=GREY_MIN darkline correct_position estimate_width extend_line show_ids displayresults add_to_manager method_for_overlap_resolution=SLOPE");		
+	
 		/*
 		The plugin results table return multiple entries per contour
 		Here we process a little to count only the number of contours
 		(assuming it's equal to the number of detected objects)
 		*/
+		
 		selectWindow("Results");
 		fiber_width_array = newArray("fiberwidth");
+		fiber_length_array = newArray("fiberlength");
+		cut_off_calc_array = newArray("cut_off_array");
 		NUMBER_OF_FIBER_DETECTED = 0;
+		
+				
+		for (l=0; l<nResults; l++){
+			fib_cut_val = getResult("Length", l);
+			cut_off_calc_array_temp = newArray(lengthOf(cut_off_calc_array)+1);
+			for (x=0; x<lengthOf(cut_off_calc_array); x++){
+				cut_off_calc_array_temp[x] = cut_off_calc_array[x];
+			}
+			cut_off_calc_array_temp[lengthOf(cut_off_calc_array)-1]=fib_cut_val;
+			cut_off_calc_array = cut_off_calc_array_temp;	
+		}
+		cut_off_calc_array = Array.slice(cut_off_calc_array,1);
+
+		Array.getStatistics(cut_off_calc_array, cut_min, cut_max, cut_mean, cut_std);
+		//print("cut_min :" + cut_min);
+		//print("cut_max :" + cut_max);
+		//print("cut_mean :" + cut_mean);
+		//print("cut_std :" + cut_std);
+		
 		for (h=0; h<nResults; h++){
+			fiberlength = getResult("Length", h);
 			fiberwidth = getResult("Line width", h);
 			if (h != 0){
 				contour_ID_prev = contourID;			
@@ -462,11 +507,16 @@ macro " assisted collagen orientation assessment" {
 				}
 			contourID = getResult("Contour ID", h);
 			fiber_width_array_temp = newArray(lengthOf(fiber_width_array)+1);
+			fiber_length_array_temp = newArray(lengthOf(fiber_length_array)+1);
+
 			for (d=0; d<lengthOf(fiber_width_array);d++){
 				fiber_width_array_temp[d]=fiber_width_array[d];
+				fiber_length_array_temp[d]=fiber_length_array[d];
 				}
+
 			if (contourID != contour_ID_prev){
 				fiber_width_array_temp[lengthOf(fiber_width_array)-1]=fiberwidth;
+				fiber_length_array_temp[lengthOf(fiber_length_array)-1]=fiberlength;
 				NUMBER_OF_FIBER_DETECTED += 1;
 				}
 			else {
@@ -474,9 +524,11 @@ macro " assisted collagen orientation assessment" {
 				}
 			 
 			fiber_width_array = fiber_width_array_temp;
+			fiber_length_array = fiber_length_array_temp;
 		}
-
+		fiber_length_array = Array.slice(fiber_length_array,1);
 		fiber_width_array = Array.slice(fiber_width_array,1);
+		
 		Array.getStatistics(fiber_width_array, width_min, width_max, width_mean, width_std);
 		//print("Min fiber width : " + width_min);
 		//print("Max fiber width : " + width_max);
@@ -489,22 +541,12 @@ macro " assisted collagen orientation assessment" {
 
 		selectWindow("Junctions");
 		NUMBER_OF_JUNCTIONS_DETECTED = getValue("results.count");		
-		FIBER_WIDTH_SUM = 0;
-		for (v=0;v<lengthOf(fiber_width_array);v++){
-		FIBER_WIDTH_SUM += fiber_width_array[v];
-		}		
-		AVG_FIBER_WIDTH = FIBER_WIDTH_SUM/lengthOf(fiber_width_array);
 		
+		MEAN_FIBER_WIDTH = width_mean;
 
 		/*
-		All set, now let's tidy a little bit and close all windows
 		TODO : find a way to close JFRAME windows
-		*/
-		
-		//selectWindow("ROI" + a);
-		//run("Close");		
-	
-		/* 
+
 		Beginning of the dull calculation process
 		Here, with some loops, we retrieve the position of the
 		max value of the amount array (i.e the array[x] where x
@@ -533,62 +575,67 @@ macro " assisted collagen orientation assessment" {
 					}
 				}
 		}
-		
+
 		count = 0;
 		while (count == 0){
-			for (i=amount_array_max_pos;i>0;i--){
-				if (amount_array[i] <= (0.65 * amount_max)){
-					amount_array_minus_2_std_pos = i;
+			for (i=amount_array_max_pos;i>=0;i--){
+				if (amount_array[i] <= (amount_max - (amount_std))){
+					amount_array_minus_std_pos = i+1;
 					count=1;
 					break;
 				}
-				
 				else{
 					continue;
 				}
 			}
 		}
-				
 		count = 0;
 		while (count == 0){
-			for (i=amount_array_max_pos;i<lengthOf(amount_array);i++){
-				if (amount_array[i] >= (0.65 * amount_max)){
-					amount_array_plus_2_std_pos = i;
+			for (i=(lengthOf(amount_array)-1);i>=amount_array_max_pos;i--){
+				if (amount_array[i] >= (amount_max - (amount_std))){
+					amount_array_plus_std_pos = i+1;
 					count=1;
 					break;
 				}
-				
+
 				else{
 					continue;
 				}
 			}
 		}
 		
-		SUM_ANGLE = 0;
-		
-		for (i=amount_array_minus_2_std_pos;i<=amount_array_plus_2_std_pos; i++){
-			SUM_ANGLE += direction_array_corrected[i]; 
+		SUM_ANGLE_PEAK = 0;
+		for (i=amount_array_minus_std_pos;i<amount_array_plus_std_pos; i++){
+			SUM_ANGLE_PEAK += direction_array_corrected[i]; 
+		}
+		SUM_ANGLE_TOTAL = 0;
+		for (i=0;i<lengthOf(direction_array_corrected); i++){
+			SUM_ANGLE_TOTAL += direction_array_corrected[i]; 
 		}
 
 		
-		DIFF_BTW_MIN_STD_AND_PLUS_STD = (amount_array_plus_2_std_pos - amount_array_minus_2_std_pos);
 		
-		DOM_ANGLE = SUM_ANGLE/DIFF_BTW_MIN_STD_AND_PLUS_STD;
-		MAX_ANGLE = direction_array_corrected[amount_array_max_pos];
-		AVG_ANGLE = (DOM_ANGLE + MAX_ANGLE)/2;
-		print("Dominant angle : " + DOM_ANGLE);		
-		print("Maximum angle : " + MAX_ANGLE);
-		print("Average angle : " + AVG_ANGLE);
+		DIFF_BTW_MIN_STD_AND_PLUS_STD = (amount_array_plus_std_pos - amount_array_minus_std_pos);
+		
+		DOM_ANGLE = round(SUM_ANGLE_PEAK/DIFF_BTW_MIN_STD_AND_PLUS_STD);
+		MAX_ANGLE = round(direction_array_corrected[amount_array_max_pos]);
+		AVG_ANGLE = round(SUM_ANGLE_TOTAL/lengthOf(direction_array_corrected));
 
-		SUM_AMOUNT = 0 ;
-		for (i=amount_array_minus_2_std_pos;i<=amount_array_plus_2_std_pos; i++){
-			SUM_AMOUNT += amount_array[i]; 
+		
+		
+		PEAK_AMOUNT = 0;
+		for (i=amount_array_minus_std_pos;i<amount_array_plus_std_pos; i++){
+			PEAK_AMOUNT += amount_array[i]; 
 		}
 
-		print("Amount of fibers following dominant direction +/- STD : " + SUM_AMOUNT); 
-		// TODO : check value ! discrepancies between this and the one calculated by the directionality plugin
+		TOTAL_AMOUNT = 0;
+		for (i=0;i<lengthOf(amount_array); i++){
+			TOTAL_AMOUNT += amount_array[i];
+		}
+		
+		AMOUNT_RATIO = (PEAK_AMOUNT/TOTAL_AMOUNT)*100;
 				
-
+		
 
 		/* 
 		Coefficient of determination (r2) fit value calculation
@@ -608,43 +655,105 @@ macro " assisted collagen orientation assessment" {
 		}
 		
 		FIT_QUALITY = 1 - (SSE/SST);
-		print("Fit quality : " + FIT_QUALITY);
+
 		
-		print("Total ROI area : " + TOTAL_AREA);
-		print("Occupation ratio : " + OCP_RATIO + " %");
+		
+		print("******************************************************************");
+		print("******************************************************************");
+		print ("ROI number " + a + " : ");
+		print("******************************************************************");
+		
+		print("ANGULAR DISPERSION :");
+		print("Peak Mean Value : " + DOM_ANGLE);		
+		print("Peak Max Value : " + MAX_ANGLE);
+		print("Average (on total) Angle Value : " + AVG_ANGLE);
+		print("% of fibers following dominant direction (peak over total) : " + AMOUNT_RATIO);
+		print("Standard deviation (angle max +/- total peak) : +/-" + dir_corr_std);
+		print("Deviation around peak max value (STD/3) : +/-" + (dir_corr_std/3));
+		print("Amount STD :" + amount_std);
+		print("Fit quality : " + FIT_QUALITY);
+		print("******************************************************************");
+
+		print("FIBERS :");
 		print("Number of fiber objects detected within the ROI : " + NUMBER_OF_FIBER_DETECTED);
 		print("Number of fiber junctions detected : " + NUMBER_OF_JUNCTIONS_DETECTED);
-		print("Average fiber width : " + AVG_FIBER_WIDTH);
+		
+		print("Fiber maximum width : " + width_max);
+		print("Fiber minimum width :" + width_min);
+		print("Fiber mean width : " + width_mean);
+		print("Fiber width STD : " + width_std);
+		print("******************************************************************");
 
+		print("ROI :");
+		print("Total ROI area : " + TOTAL_AREA);
+		print("Occupied area :" + BLACK_AREA);
+		print("Occupation ratio : " + OCP_RATIO + " %");
+		print("******************************************************************");
+		print("******************************************************************");
+		
+		
+		
+		
+		
 		/*
-		Plot of the function amount = f(angle)
-		0.5 is the arbitrary length of the ordinate axis
-		Useless for now, hence the commented block
+		PLOT, amount = f(angle)
 		*/
 		
-		//Plot.create("Angle repartition within the ROI", "Angle", "Amount", direction_array_corrected, amount_array);
-		//Plot.setLimits(data_points_inv,data_points,0,0.5);
-		//Plot.setColor("green");
-		//Plot.add("triangles", direction_array_corrected, fit_array);
-		//Plot.setColor("red");
-		//Plot.show();
-
-	
-	/*
-	Will be effective after I set a working folder for saving results
-	in a xls/csv sheet or something like that
-	*/
-	//while (nImages>0) { 
-	//	selectImage(nImages); 
-	//	close(); 
+		Plot.create("Angle repartition within the ROI", "Angle", "Amount", direction_array_corrected, amount_array);
+		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
+		Plot.setColor("green");
+		Plot.add("triangles", direction_array_corrected, fit_array);
+		Plot.setColor("red");
+		Plot.show();
+		
+		/*
+		PLOT, fibers distribution
+		*/
+		
+		val_number_fiber_array = newArray("valnumber");
+		for (bb=0; bb<lengthOf(fiber_width_array); bb++){
+			val_number_fiber_array_temp = newArray(lengthOf(val_number_fiber_array)+1);
+			for (b=0; b<lengthOf(val_number_fiber_array); b++){
+			val_number_fiber_array_temp[b] = val_number_fiber_array[b];
+			}
+			val_number_fiber_array_temp[lengthOf(val_number_fiber_array)-1]=bb;
+			val_number_fiber_array = val_number_fiber_array_temp;
 		}
-	// selectWindow("ROI Manager");
-	//run("Close");
-	//selectWindow("Directionality analysis for DUP_ROI" + a + "(using Local gradient orientation)");
-	//run("Close");
-	//selectWindow("Directionality histograms for DUP_ROI" + a + "(using Local gradient orientation)");
-	//run("Close");
-	//selectWindow("Directionality for DUP_ROI" + a + "(using Local gradient orientation)");
-	//run("Close");
+			
+		val_number_fiber_array	= Array.slice(val_number_fiber_array,1);
+		Array.getStatistics(val_number_fiber_array, val_min, val_max, val_mean, val_std);
+			
+		Plot.create("Fiber distribution", "fibers", "val", val_number_fiber_array, fiber_width_array);
+		Plot.setLimits(val_min,val_max,width_min,width_max);
+		Plot.setColor("red");
+		Plot.show();
+
+		run("Measure");
+		run("Clear Results");
+		selectWindow("Results");
+		
+		for (i=0;i<lengthOf(direction_array);i++){
+			setResult("Angle(NC)", i, direction_array[i]);
+		}
+		updateResults();
+		for (i=0;i<lengthOf(direction_array_corrected);i++){
+			setResult("Angle(C)", i, direction_array_corrected[i]);
+		}
+		updateResults();
+		for (i=0;i<lengthOf(amount_array);i++){
+			setResult("Amount", i, amount_array[i]);
+		}
+		updateResults();
+		for (i=0;i<lengthOf(fit_array);i++){
+			setResult("Fit", i, fit_array[i]);
+		}
+		updateResults();
+		for (i=0;i<lengthOf(fiber_width_array);i++){
+			setResult("Fiber width", i, fiber_width_array[i]);
+		}
+		updateResults();
+		
+		dir = getDirectory("Choose where to save."); 
+		saveAs("Results",  dir + image + "ROI_" + a + ".xls"); 
 	}
 }
