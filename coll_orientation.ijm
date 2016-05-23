@@ -828,6 +828,8 @@ macro " assisted collagen orientation assessment" {
 	
 	/*
 	Macro end by saving in a txt file all the content of the log window
+	Then close all images
+	And close ImageJ/Fiji quietly
 	*/
 	
 	selectWindow("Log");
