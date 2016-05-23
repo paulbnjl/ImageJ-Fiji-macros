@@ -249,6 +249,7 @@ macro " assisted collagen orientation assessment" {
 		to be located at the center of the initial selection, while the
 		most excentered regions of the ROI are more prone to contain 
 		unrelated elements
+		
 		This will allow to calculate an occupation parameter
 		Idea : this square will be thresholded (IsoData), then
 		an occupation index will be calculated with the black 
@@ -310,7 +311,7 @@ macro " assisted collagen orientation assessment" {
 		Another dirty workaround : directionality is sometime too slow and the macro run too fast for the results windows to 
 		be displayed in time
 		*/		
-		wait(100);
+		wait(50);
 
 		for (j=0; j<data_points; j++){
 			
@@ -418,7 +419,7 @@ macro " assisted collagen orientation assessment" {
 		then calculate the ratio
 		*/
 		
-		wait(100);
+		wait(50);
 		selectWindow("ROI_area");
 		TOTAL_AREA = getHeight()*getWidth();
 		run("8-bit");
@@ -447,7 +448,7 @@ macro " assisted collagen orientation assessment" {
 		and for the contrast, we will evaluate it automatically
 		*/
 
-		wait(100);		
+		wait(50);		
 		selectWindow("ROI" + a);
 		run("Select None");		
 		run("8-bit");
@@ -773,9 +774,14 @@ macro " assisted collagen orientation assessment" {
 		Plot.setColor("red");
 		Plot.show();
 
-		run("Measure");
-		run("Clear Results");
-		selectWindow("Results");
+		run("Measure"); // pop the results table
+		run("Clear Results"); // erase everything in it
+		selectWindow("Results"); // select the table
+		
+		/* 
+		Now we just fill the table with our arrays content
+		And then we will export the table as a whole in a xls file
+		*/
 		
 		for (i=0;i<lengthOf(direction_array);i++){
 			setResult("Angle(NC)", i, direction_array[i]);
@@ -800,6 +806,11 @@ macro " assisted collagen orientation assessment" {
 		
 		saveAs("Results",  dir + image + "ROI_" + a + ".xls");
 		
+		/*
+		As a trace of what we have done with the macro
+		We now save all plots, ROIs and ridge fit images
+		*/
+		
 		selectWindow("Angle_ROI_plot_" + a);
 		run("Capture Image");
 		saveAs("png",  dir + image + "Angle plot ROI_" + a + ".png");
@@ -814,6 +825,11 @@ macro " assisted collagen orientation assessment" {
 		saveAs("tiff",  dir + image + "Fit_Ridge ROI_" + a + ".tiff");
 		
 	}
+	
+	/*
+	Macro end by saving in a txt file all the content of the log window
+	*/
+	
 	selectWindow("Log");
 	windowcontent = getInfo();
 	saveAs("text", dir +image + "results_log" + ".txt");
