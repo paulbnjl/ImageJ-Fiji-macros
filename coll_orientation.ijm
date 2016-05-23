@@ -809,10 +809,17 @@ macro " assisted collagen orientation assessment" {
 		saveAs("png",  dir + image + "Fiber distribution ROI_" + a + ".png");	
 				
 		selectWindow("ROI" + a);
-		saveAs("tiff",  dir + image + "fit ridge ROI_" + a + ".tiff");		
+		saveAs("tiff",  dir + image + "ROI_" + a + ".tiff");
+		run("Capture Image");
+		saveAs("tiff",  dir + image + "Fit_Ridge ROI_" + a + ".tiff");
 		
 	}
 	selectWindow("Log");
 	windowcontent = getInfo();
 	saveAs("text", dir +image + "results_log" + ".txt");
+	 while (nImages>0) { 
+          selectImage(nImages); 
+          close(); 
+      }
+	run("Quit");
 }
