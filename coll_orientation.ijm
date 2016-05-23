@@ -75,8 +75,17 @@ macro " assisted collagen orientation assessment" {
 	image_width = getWidth();
 	image_area = image_height * image_width;
 
+	/*
+	Ask the user to define a directory
+	for saving stuff
+	*/
 
+	dir = getDirectory("Choose where to save."); 
 
+	/*
+	Now, ask the user to define the ROI size
+	*/
+	
 	Dialog.create("Region Of Interest (ROI) dimensions : ");
 	Dialog.addNumber("Horizontal size : ", 200);
 	Dialog.addNumber("Vertical size : ", 200);  
@@ -100,6 +109,14 @@ macro " assisted collagen orientation assessment" {
 		setTool("line");
 		}
 
+
+	/*
+	Capture the full image with the reference axis
+	*/
+	run("Capture Image");
+	saveAs("png",  dir + image + "_IMG_TOTAL_REF_AXIS" + ".png");
+	run("Close");
+	
 	/*
 	Run a measurments with minimal parameters 
 	as we only want the angle
@@ -167,7 +184,7 @@ macro " assisted collagen orientation assessment" {
 		
 		setTool("multipoint");
 
-		waitForUser( "Click on the image to center the ROI and press enter.");
+		waitForUser( "ROI " + a + " of " + ROI_number + ". Click on the image to center the ROI and press enter.");
 		while ((selectionType() !=10)){
 			setTool("multipoint");
 			}
@@ -210,12 +227,17 @@ macro " assisted collagen orientation assessment" {
 		*/
 
 		run("Rotate...", "  angle=epth_amount_inv");
-
-
+		
+		/*
+		Create a screen capture of the ROI placement
+		*/
+		run("Capture Image");
+		saveAs("png",  dir + image + "_IMG_TOTAL_ROI_" + a + ".png");
+		run("Close");
 		/*
 		Create a new image from the ROI, and rename it.
 		*/
-			
+		selectWindow("image_base");	
 		run("Duplicate...", "title=ROI_temp");
 		selectWindow("ROI_temp");
 		rename("ROI" + a);
@@ -657,16 +679,38 @@ macro " assisted collagen orientation assessment" {
 		FIT_QUALITY = 1 - (SSE/SST);
 
 		
+		/*
+		A little copy/paste of the GetTime macro
+		to format our results with the current date and time
+		*/
 		
+		MonthNames = newArray("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
+		DayNames = newArray("Sun", "Mon","Tue","Wed","Thu","Fri","Sat");
+		getDateAndTime(year, month, dayOfWeek, dayOfMonth, hour, minute, second, msec);
+		TimeString ="Date: "+DayNames[dayOfWeek]+" ";
+		if (dayOfMonth<10) {TimeString = TimeString+"0";}
+		TimeString = TimeString+dayOfMonth+"-"+MonthNames[month]+"-"+year+"\nTime: ";
+		if (hour<10) {TimeString = TimeString+"0";}
+		TimeString = TimeString+hour+":";
+		if (minute<10) {TimeString = TimeString+"0";}
+		TimeString = TimeString+minute+":";
+		if (second<10) {TimeString = TimeString+"0";}
+		TimeString = TimeString+second;
+			
+		/*
+		Now, the results, printed in the log windowcontent
+		*/
 		print("******************************************************************");
 		print("******************************************************************");
-		print ("ROI number " + a + " : ");
+		print(TimeString);
+		print ("ROI number : " + a);
+		print("ROI size : " + ROI_size_dx + "x" + ROI_size_dy);
 		print("******************************************************************");
 		
 		print("ANGULAR DISPERSION :");
 		print("Peak Mean Value : " + DOM_ANGLE);		
 		print("Peak Max Value : " + MAX_ANGLE);
-		print("Average (on total) Angle Value : " + AVG_ANGLE);
+		//print("Average (on total) Angle Value : " + AVG_ANGLE);
 		print("% of fibers following dominant direction (peak over total) : " + AMOUNT_RATIO);
 		print("Standard deviation (angle max +/- total peak) : +/-" + dir_corr_std);
 		print("Deviation around peak max value (STD/3) : +/-" + (dir_corr_std/3));
@@ -698,8 +742,8 @@ macro " assisted collagen orientation assessment" {
 		/*
 		PLOT, amount = f(angle)
 		*/
-		
-		Plot.create("Angle repartition within the ROI", "Angle", "Amount", direction_array_corrected, amount_array);
+		angle_plot_name = "Angle_ROI_plot_" + a;
+		Plot.create(angle_plot_name, "Angle", "Amount", direction_array_corrected, amount_array);
 		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
 		Plot.setColor("green");
 		Plot.add("triangles", direction_array_corrected, fit_array);
@@ -722,8 +766,9 @@ macro " assisted collagen orientation assessment" {
 			
 		val_number_fiber_array	= Array.slice(val_number_fiber_array,1);
 		Array.getStatistics(val_number_fiber_array, val_min, val_max, val_mean, val_std);
-			
-		Plot.create("Fiber distribution", "fibers", "val", val_number_fiber_array, fiber_width_array);
+		
+		fiber_plot_name = "Fiber_distribution_plot_" + a;
+		Plot.create(fiber_plot_name, "fibers", "val", val_number_fiber_array, fiber_width_array);
 		Plot.setLimits(val_min,val_max,width_min,width_max);
 		Plot.setColor("red");
 		Plot.show();
@@ -753,7 +798,21 @@ macro " assisted collagen orientation assessment" {
 		}
 		updateResults();
 		
-		dir = getDirectory("Choose where to save."); 
-		saveAs("Results",  dir + image + "ROI_" + a + ".xls"); 
+		saveAs("Results",  dir + image + "ROI_" + a + ".xls");
+		
+		selectWindow("Angle_ROI_plot_" + a);
+		run("Capture Image");
+		saveAs("png",  dir + image + "Angle plot ROI_" + a + ".png");
+		
+		selectWindow("Fiber_distribution_plot_" + a);
+		run("Capture Image");
+		saveAs("png",  dir + image + "Fiber distribution ROI_" + a + ".png");	
+				
+		selectWindow("ROI" + a);
+		saveAs("tiff",  dir + image + "fit ridge ROI_" + a + ".tiff");		
+		
 	}
+	selectWindow("Log");
+	windowcontent = getInfo();
+	saveAs("text", dir +image + "results_log" + ".txt");
 }
