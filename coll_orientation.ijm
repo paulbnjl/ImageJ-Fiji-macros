@@ -61,6 +61,12 @@ requires("1.50a");
 macro " assisted collagen orientation assessment" {
 	
 	/*
+	The mandatory warning message...
+	*/
+	
+	showMessage("Warning !", "This macro is highly EXPERIMENTAL, and thus provided WITHOUT ANY WARRANTY. The author has no liability of any sort, and there is no guarantee that the results are accurate.");
+	
+	/*
 	Source (i.e opened) image selection
 	*/
 
@@ -113,6 +119,7 @@ macro " assisted collagen orientation assessment" {
 	/*
 	Capture the full image with the reference axis
 	*/
+	
 	run("Capture Image");
 	saveAs("png",  dir + image + "_IMG_TOTAL_REF_AXIS" + ".png");
 	run("Close");
@@ -231,12 +238,15 @@ macro " assisted collagen orientation assessment" {
 		/*
 		Create a screen capture of the ROI placement
 		*/
+		
 		run("Capture Image");
 		saveAs("png",  dir + image + "_IMG_TOTAL_ROI_" + a + ".png");
 		run("Close");
+		
 		/*
 		Create a new image from the ROI, and rename it.
 		*/
+		
 		selectWindow("image_base");	
 		run("Duplicate...", "title=ROI_temp");
 		selectWindow("ROI_temp");
@@ -255,6 +265,7 @@ macro " assisted collagen orientation assessment" {
 		an occupation index will be calculated with the black 
 		(foreground) / total area ratio
 		*/
+		
 		selectWindow("image_base");
 		x5 = ROI_center_x - ((ROI_size_dx)/2);
 		y5 = ROI_center_y;
@@ -275,14 +286,15 @@ macro " assisted collagen orientation assessment" {
 		*/
 
 		run("Duplicate...", "title=ROI_area");
-		selectWindow("ROI" + a);
+		
 		
 		/* 
 		Directionality analysis
 		data_points and data_points_start are the min and max bin range values
 		Separating these parameters from the base command may be more handy in the future
 		*/
-	
+		
+		selectWindow("ROI" + a);
 		data_points = 90;
 		data_points_start = -90;
 		run("Directionality", "method=[Local gradient orientation] nbins=data_points histogram=data_points_start display_table");
@@ -305,13 +317,15 @@ macro " assisted collagen orientation assessment" {
 		/*
 		Unicode encoding bug in Microsoft Windows ? This following dirty workaround avoid some trouble with the "°" character...
 		*/
+		
 		degreechar = fromCharCode(0xB0); 		
 		
 		/* 
 		Another dirty workaround : directionality is sometime too slow and the macro run too fast for the results windows to 
 		be displayed in time
 		*/		
-		wait(50);
+		
+		wait(10);
 
 		for (j=0; j<data_points; j++){
 			
@@ -375,9 +389,6 @@ macro " assisted collagen orientation assessment" {
 		direction_array_corrected = newArray(lengthOf(direction_array));
 		for (i=0;i<lengthOf(direction_array_corrected);i++){
 			direction_array_corrected[i] = direction_array[i];
-			//if (direction_array_corrected[i]<0){
-			//	direction_array_corrected[i] = - direction_array_corrected[i];
-			//	}
 			direction_array_corrected[i] += epth_amount_inv;
 			}
 
@@ -419,7 +430,7 @@ macro " assisted collagen orientation assessment" {
 		then calculate the ratio
 		*/
 		
-		wait(50);
+		wait(10);
 		selectWindow("ROI_area");
 		TOTAL_AREA = getHeight()*getWidth();
 		run("8-bit");
@@ -448,7 +459,7 @@ macro " assisted collagen orientation assessment" {
 		and for the contrast, we will evaluate it automatically
 		*/
 
-		wait(50);		
+		wait(10);		
 		selectWindow("ROI" + a);
 		run("Select None");		
 		run("8-bit");
@@ -701,6 +712,7 @@ macro " assisted collagen orientation assessment" {
 		/*
 		Now, the results, printed in the log windowcontent
 		*/
+		
 		print("******************************************************************");
 		print("******************************************************************");
 		print(TimeString);
@@ -732,17 +744,14 @@ macro " assisted collagen orientation assessment" {
 		print("ROI :");
 		print("Total ROI area : " + TOTAL_AREA);
 		print("Occupied area :" + BLACK_AREA);
-		print("Occupation ratio : " + OCP_RATIO + " %");
+		print("Occupation ratio (estim.) : " + OCP_RATIO + " %");
 		print("******************************************************************");
 		print("******************************************************************");
-		
-		
-		
-		
 		
 		/*
 		PLOT, amount = f(angle)
 		*/
+		
 		angle_plot_name = "Angle_ROI_plot_" + a;
 		Plot.create(angle_plot_name, "Angle", "Amount", direction_array_corrected, amount_array);
 		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
@@ -839,5 +848,8 @@ macro " assisted collagen orientation assessment" {
           selectImage(nImages); 
           close(); 
       }
+	  
+	showMessage("Ending...", "End of the evaluation. ImageJ will now close. All results are stored in " + dir);  
 	run("Quit");
+	
 }
