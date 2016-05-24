@@ -58,7 +58,7 @@ Ask for a recent version of imageJ/Fiji (Fiji is better suited)
 
 requires("1.50a");
 
-macro " assisted collagen orientation assessment" {
+macro "Collagen orientation analysis" {
 	
 	/*
 	The mandatory warning message...
