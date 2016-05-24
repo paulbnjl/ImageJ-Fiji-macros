@@ -778,7 +778,7 @@ macro "Collagen orientation analysis" {
 		Array.getStatistics(val_number_fiber_array, val_min, val_max, val_mean, val_std);
 		
 		fiber_plot_name = "Fiber_distribution_plot_" + a;
-		Plot.create(fiber_plot_name, "fibers", "val", val_number_fiber_array, fiber_width_array);
+		Plot.create(fiber_plot_name, "Fibers", "Size", val_number_fiber_array, fiber_width_array);
 		Plot.setLimits(val_min,val_max,width_min,width_max);
 		Plot.setColor("red");
 		Plot.show();
