@@ -601,6 +601,22 @@ macro "Collagen orientation analysis" {
 			for (i=0;i<lengthOf(amount_array);i++){
 				if (amount_array[i] == amount_max){
 					amount_array_max_pos = i;
+					
+					/*
+					Little workaround just in case the max amount peak
+					is too close to the boundaries (can block the next while loops, if so)
+					*/
+					
+					if (direction_array_corrected[amount_array_max_pos] >= (data_points - 10)){
+						amount_std = 0 ;
+						print("ERROR : max amount too  close to boundaries, std set to 0!");
+					}
+					
+					else if (direction_array_corrected[amount_array_max_pos] <= (data_points_start + 10)){
+						amount_std = 0 ;
+						print("ERROR : max amount too  close to boundaries, std set to 0!");
+					}
+					
 					count=1;
 					break;
 				}
