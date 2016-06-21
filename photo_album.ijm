@@ -95,6 +95,7 @@ macro " Assisted photo album creator" {
 			Dialog.addCheckbox("Insert scale bar ?", false);
 			Dialog.addCheckbox("Add annotations ?", false);
 			Dialog.addCheckbox("Insert picture(s) title(s) ?", true);
+			Dialog.addCheckbox("Center the last line (odd img number) ?", true);
 			Dialog.addCheckbox("Show album title ?", true);
 			Dialog.addString("Album title : ", "album_title");
 			Dialog.show();
@@ -108,6 +109,7 @@ macro " Assisted photo album creator" {
 			scale = Dialog.getCheckbox();
 			pic_ant = Dialog.getCheckbox();
 			show_pic_name = Dialog.getCheckbox();
+			center_last_images = Dialog.getCheckbox();
 			show_title = Dialog.getCheckbox();
 			title = Dialog.getString();
 			
@@ -135,7 +137,7 @@ macro " Assisted photo album creator" {
 	title_pos_x = album_w/2;
 	title_pos_y = album_h/20;
 	
-	spacers_hz_nb = 2 + (col_nb -1);
+	spacers_hz_nb = 2 + (col_nb - 1);
 	spacers_hz_size = sp_hz_sz;
 	
 	hz_space_taken_by_spacers = spacers_hz_nb * spacers_hz_size;
@@ -188,7 +190,6 @@ macro " Assisted photo album creator" {
 	 */
 	
 	for (i=1; i <= pic_nb; i++) {
-		
 		// Always nice to know where we are...
 		// Hence the status and progress bar
 		status_message = "Image number : " +  i;
@@ -266,7 +267,7 @@ macro " Assisted photo album creator" {
 		
 		// Allow to add annotations using the basic imageJ tools, if the user checked the corresponding box.
 		if (pic_ant == true) {
-			waitForUser("Annotate image", "Add annotations to the image if needed, then press enter");
+			waitForUser("Annotate image", "Add annotations to the image if needed, then press enter. \n Note : ctrl+D to draw, double-click on the selected tool to access options.");
 			run("Select None");
 		}
 		
@@ -287,17 +288,32 @@ macro " Assisted photo album creator" {
 		 * pictures, only the x dimension
 		 * but if it is not the case, we reset our counter
 		 * and jump line
-		 */
-		  
+		 */ 
 		if (count <= col_nb){
+			if (i == pic_nb && center_last_images == true && col_nb != 1){
+				if (pic_nb % 2 != 0) {
+					if (orientation == "Portrait") {
+						pos_x = prev_x_pos + spacers_hz_size + (pic_max_w/2);					
+					}
+					else {
+						pos_x = prev_x_pos + spacers_hz_size;
+					}
+				}
+				else {
+					pos_x = prev_x_pos + spacers_hz_size;
+				}
+			}
 			
-			pos_x = prev_x_pos + spacers_hz_size;
+			else {
+				pos_x = prev_x_pos + spacers_hz_size;
+			}
+			
 			prev_x_pos = pos_x + pic_max_w;
 			
 			if (i == 1) {
 				pos_y = spacers_vt_size + prev_y_pos + offset_induced_by_the_title;
 			}
-			
+				
 			else {
 				pos_y = spacers_vt_size + prev_y_pos;	
 			}
@@ -311,7 +327,24 @@ macro " Assisted photo album creator" {
 			prev_y_pos = (spacers_vt_size + pic_max_h + offset_induced_by_the_title ) + (current_line)*(spacers_vt_size + pic_max_h);
 			pos_y = spacers_vt_size + prev_y_pos;
 			
-			pos_x = spacers_hz_size;
+			if (i == pic_nb && center_last_images == true && col_nb !=1){
+				if (pic_nb % 2 != 0) {
+					if (orientation == "Portrait") {
+						pos_x = spacers_hz_size + (pic_max_w/2);	
+					}
+					else {
+						pos_x = spacers_hz_size;
+					}
+				}
+				else {
+					pos_x = spacers_hz_size;
+				}
+			}
+			
+			else {
+				pos_x = spacers_hz_size;
+			}
+			
 			prev_x_pos = pos_x + pic_max_w;
 
 			current_line += 1;
@@ -339,10 +372,10 @@ macro " Assisted photo album creator" {
 	}
 	
 	//Select the output image format, then save the image once the album is made
-	nb_checked = 0;
 	no_image_format_selected = 0;
 	
 	while (no_image_format_selected == 0) {
+		nb_checked = 0;
 		Dialog.create("Photo album format :");
 		Dialog.addMessage("Output format :");
 		Dialog.addCheckbox("TIFF", false);
@@ -359,12 +392,12 @@ macro " Assisted photo album creator" {
 			format = "tiff"; 	
 		}
 		
-		else if (jpeg_s == true) {
+		if (jpeg_s == true) {
 			nb_checked += 1;
 			format = "jpeg";
 		}
 		
-		else if (png_s == true) {
+		if (png_s == true) {
 			nb_checked += 1;
 			format = "png";
 		}
