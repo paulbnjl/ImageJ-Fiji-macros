@@ -90,12 +90,13 @@ macro " Assisted photo album creator" {
 				Dialog.addSlider("Number of columns", 0, 4, 4);
 			}
 			
-			Dialog.addSlider("Space between column : ", 10, 100, 10);
-			Dialog.addSlider("Space between lines :", 10, 100, 10);
+			Dialog.addSlider("Space between column : ", 10, 200, 10);
+			Dialog.addSlider("Space between lines :", 10, 200, 10);
 			Dialog.addCheckbox("Insert scale bar ?", false);
 			Dialog.addCheckbox("Add annotations ?", false);
 			Dialog.addCheckbox("Insert picture(s) title(s) ?", true);
 			Dialog.addCheckbox("Center the last line (odd img number) ?", true);
+			//Dialog.addCheckbox("Crop final album [portrait only] ?",  true);
 			Dialog.addCheckbox("Show album title ?", true);
 			Dialog.addString("Album title : ", "album_title");
 			Dialog.show();
@@ -110,6 +111,7 @@ macro " Assisted photo album creator" {
 			pic_ant = Dialog.getCheckbox();
 			show_pic_name = Dialog.getCheckbox();
 			center_last_images = Dialog.getCheckbox();
+			//crop_album = Dialog.getCheckbox();
 			show_title = Dialog.getCheckbox();
 			title = Dialog.getString();
 			
@@ -370,7 +372,25 @@ macro " Assisted photo album creator" {
 		selectWindow(file);
 		run("Close");
 	}
+	selectWindow("A4_photo_grid");
+	// Last annotation step for the whole grid
+	if (pic_ant == true) {
+		waitForUser("Annotate image", "Add annotations to the image if needed, then press enter. \n Note : ctrl+D to draw, double-click on the selected tool to access options.");
+		run("Select None");
+	}
+	selectWindow("A4_photo_grid");
 	
+	// BUGGED AND USELESS : crop the final album
+	//if (orientation == "Portrait") {
+	//	if (crop_album == true) {
+	//		height_final = (line_nb*pic_max_h) + (spacers_vt_size * (line_nb+1));
+	//		width_final = (col_nb*pic_max_w) + (spacers_hz_size * (col_nb+1));
+	//		makeRectangle(0, 0, height_final, width_final);
+	//		run("Crop");
+	//	}
+	//}
+	//selectWindow("A4_photo_grid");	
+		
 	//Select the output image format, then save the image once the album is made
 	no_image_format_selected = 0;
 	
