@@ -65,6 +65,7 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 			Dialog.addCheckbox("Length/width evaluation ? ", false);
 			Dialog.addCheckbox("Save results ?", true);
 			Dialog.addCheckbox("Export results (xls) ?", false);
+			Dialog.addCheckbox("Close everything after execution ?", false);
 			Dialog.addNumber("Object minimum size :", min_OBJ_size);
 			Dialog.show();
 			
@@ -76,6 +77,7 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 			RD_val = Dialog.getCheckbox();
 			save_choice = Dialog.getCheckbox();
 			export_choice = Dialog.getCheckbox();
+			exit_choice = Dialog.getCheckbox();
 			min_OBJ_size = Dialog.getNumber();
 			new_ROI_start_count = 0;	
 			
@@ -305,6 +307,12 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 			if (fluo_nb == 1) {
 				Process_Results();
 				Calc_Draw_Distance_centroid();
+				if (save_choice == true) {
+					selectWindow("ROI" + n);
+					run("Capture Image");
+					saveAs("tiff",  dir + image + "IHC_dist_line_ROI_" + n + ".tiff");
+					run("Close");
+				}	
 				if (RD_val == true) {
 					selectWindow("ROI" + n);
 					run("Duplicate...", "title=ROI_8bit");
@@ -318,16 +326,15 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 					// Entries parameters (WIDTH, high and low contrast) are calculated/measured before
 					run("Ridge Detection", "line_width=CG_WIDTH high_contrast=max_val_g low_contrast=min_val_g correct_position estimate_width displayresults add_to_manager method_for_overlap_resolution=NONE");
 					if (save_choice == true) {
-
 						saveAs("tiff",  dir + "ROI_8bit" + "IHC_ridge_ROI_" + n + ".tiff");
+						run("Close");
 					}
-				
+					else {
+						selectWindow("ROI_8bit");
+						run("Close");
+					}
 				}
-				if (save_choice == true) {
-					run("Capture Image");
-					saveAs("tiff",  dir + image + "IHC_dist_ROI_" + n + ".tiff");
-				}
-				
+					
 				FLUO_AREA = CG_AREA;
 				print("Fluorescent area :" + FLUO_AREA);
 				print("ROI area : " + ROI_AREA_USERDEF);
@@ -338,7 +345,7 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				new_ROI_start_count = roiManager("count");
 				Rs_Table_nb = new_ROI_start_count;
 			}
-		}	
+		}
 	
 		if (XO_val == true){
 			// same as we have seen before with CG
@@ -525,12 +532,20 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				}
 			count +=1;
 			}
+			
 			selectWindow("ROI" + n);
 			image = "ROI" + n;
 			
 			if ((fluo_nb == 1) || ((fluo_nb == 2) && (OTC_val == false) )) {
 				Process_Results();
 				Calc_Draw_Distance_centroid();
+				if (save_choice == true) {
+					selectWindow("ROI" + n);
+					run("Capture Image");
+					saveAs("tiff",  dir + image + "IHC_dist_line_ROI_" + n + ".tiff");
+					run("Close");
+				}
+				
 				new_ROI_start_count = roiManager("count");
 				if (RD_val == true) {
 					selectWindow("ROI" + n);
@@ -544,16 +559,14 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 					run("Ridge Detection", "line_width=XO_WIDTH high_contrast=max_val_o low_contrast=min_val_o correct_position estimate_width displayresults add_to_manager method_for_overlap_resolution=NONE");
 					if (save_choice == true) {
 						saveAs("tiff",  dir + "ROI_8bit" + "IHC_ridge_ROI_" + n + ".tiff");
+						run("Close");
 					}
-				
+					else {
+						selectWindow("ROI_8bit");
+						run("Close");
+					}
 				}
 				
-				
-				if (save_choice == true) {
-					run("Capture Image");
-					saveAs("tiff",  dir + image + "IHC_dist_ROI_" + n + ".tiff");
-					}
-					
 				FLUO_AREA = CG_AREA + XO_AREA;
 				print("Fluorescent area :" + FLUO_AREA);
 				print("ROI area : " + ROI_AREA_USERDEF);
@@ -562,8 +575,8 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 			
 			else if (((fluo_nb == 2) && (OTC_val == true)) || (fluo_nb == 3)) {
 				new_ROI_start_count = roiManager("count");
-			}
-	}	
+			}	
+		}
 		
 		if (OTC_val == true){
 			// Colour thresholding : OTC
@@ -650,6 +663,8 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				rename("ROI_OTC_MASK");
 				selectWindow("ROI_OTC");
 				run("Close");
+				selectWindow("ROI_OTC_CONTOUR");
+				run("Close");
 			}
 			
 			selectWindow("ROI_OTC_MASK");
@@ -723,6 +738,8 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				user_choice = Dialog.getChoice();
 				
 				if (user_choice == "Yes") {
+					selectWindow("ROI_OTC_dtec");
+					run("Close");
 					break_condition = 1;
 					break;
 				}
@@ -746,7 +763,6 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 					}
 				}
 			}
-			
 			selectWindow("Results");
 			
 
@@ -760,43 +776,48 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				setResult("Label",i,label);
 				OTC_AREA += getResult("Area", i);
 				OTC_WIDTH += getResult("Minor", i);
-				}
+			}
 				
 			if ((CG_val == true) && (XO_val == false)) {
 				for (j=0; j<new_ROI_start_count; j++) {
 					label = "Calcein Green, line :" +(j+1);
 					setResult("Label",j,label);
 					}
-				}	
+			}	
 					
 			else if ((CG_val == false) && (XO_val == true))	{
 				for (j=0; j<new_ROI_start_count; j++) {
 					label = "Xylenol Orange, line : " +(j+1);
 					setResult("Label",j,label);
 					}			
-				}
+			}
 					
 			else if ((CG_val == true) && (XO_val == true))	{
 				for (j=Rs_Table_nb; j<new_ROI_start_count; j++) {
 					label = "Xylenol Orange, line : " +(j+1);
 					setResult("Label",j,label);
 				}
+				
 				for (k=0; k<Rs_Table_nb; k++) {
 					label = "Calcein Green, line :" +(k+1);
 					setResult("Label",k,label);
 					}						
-				}
+			}
+			
 			updateResults();
 			OTC_WIDTH = OTC_WIDTH/nResults();	
 			
-			
-			
-			selectWindow("ROI_OTC_dtec");
-			run("Close");
 			selectWindow("ROI" + n);
 			image = "ROI" + n;
 			Process_Results();
 			Calc_Draw_Distance_centroid();
+			if (save_choice == true) {
+				selectWindow("ROI" + n);
+				run("Capture Image");
+				saveAs("tiff",  dir + image + "IHC_dist_line_ROI_" + n + ".tiff");
+				run("Close");
+			}
+			
 			if (RD_val == true) {
 				selectWindow("ROI" + n);
 				run("Duplicate...", "title=ROI_8bit");
@@ -804,26 +825,29 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 				run("8-bit");
 				getMinAndMax(min_val_t, max_val_t);
 				if (OTC_WIDTH > 20) {
-						OTC_WIDTH = 20;
-					}
+					OTC_WIDTH = 20;
+				}
 
 				run("Ridge Detection", "line_width=OTC_WIDTH high_contrast=max_val_t low_contrast=min_val_t correct_position estimate_width displayresults add_to_manager method_for_overlap_resolution=NONE");
 				if (save_choice == true) {
 					saveAs("tiff",  dir + "ROI_8bit" + "IHC_ridge_ROI_" + n + ".tiff");
+					run("Close");
 					}
-				
+				else {
+					selectWindow("ROI_8bit");
+					run("Close");
+					}	
 			}
 			
-			if (save_choice == true) {
-				// if the user said so, do a screencap of the image
-				run("Capture Image");
-				saveAs("tiff",  dir + image + "IHC_dist_ROI_" + n + ".tiff");
-			}
+
 			// some prints...
 			FLUO_AREA = CG_AREA + OTC_AREA + XO_AREA;
 			print("Fluorescent area :" + FLUO_AREA);
 			print("ROI area : " + ROI_AREA_USERDEF);
 			print("Fluo/total ratio : " + (FLUO_AREA*100)/ROI_AREA_USERDEF);
+			
+			selectWindow("ROI_OTC_MASK");
+			run("Close");
 		}
 
 	if (export_choice == true) {
@@ -845,13 +869,15 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 	And close ImageJ/Fiji quietly
 	*/
 	
-	while (nImages>0) { 
-          selectImage(nImages); 
-          close(); 
+	if (exit_choice == true) {
+		while (nImages>0) { 
+			selectImage(nImages); 
+			close(); 
 		}
 	  
-	showMessage("Ending...", "End of the evaluation. ImageJ will now close. All results are stored in " + dir);  
-	run("Quit");
+		showMessage("Ending...", "End of the evaluation. ImageJ will now close. All results are stored in " + dir);  
+		run("Quit");
+	}
 	
 	
 	
@@ -1119,6 +1145,5 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 		TimeString = TimeString+minute+":";
 		if (second<10) {TimeString = TimeString+"0";}
 		TimeString = TimeString+second;	
-		
 	}
 }
