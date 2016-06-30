@@ -348,6 +348,7 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 					run("8-bit");
 					selectWindow("ROI_GREEN_8bit");
 					getMinAndMax(min_val, max_val);
+					run("Sharpen");
 					run("Ridge Detection", "line_width=15 high_contrast=max_val low_contrast=min_val correct_position estimate_width displayresults add_to_manager method_for_overlap_resolution=NONE");
 					result_entry_start = 0;
 					Process_Ridge_Results("_CG");
@@ -571,6 +572,7 @@ macro "semi-automatic IHC images line segmentation and distance calculation" {
 					else {
 						result_entry_start = 0;
 					}
+					run("Sharpen");
 					run("Ridge Detection", "line_width=15 high_contrast=max_val low_contrast=min_val correct_position estimate_width displayresults add_to_manager method_for_overlap_resolution=NONE");
 					
 					Process_Ridge_Results("_XO");
