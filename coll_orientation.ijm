@@ -53,7 +53,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
-Ask for a recent version of imageJ/Fiji (Fiji is better suited)
+Ask for a recent version of Fiji (Fiji is better suited)
+WON'T WORK WITH IMAGEJ (unless you install the required plugins : directionnality and ridge_detection)
 */
 
 requires("1.50a");
@@ -72,10 +73,16 @@ macro "Collagen orientation analysis" {
 
 	image = getTitle();
 	selectWindow(image);
-	run("RGB Color");
-	selectWindow(image);
-	run("Close");
-	selectWindow(image + " (RGB)");
+	
+	// IMMPORTANT : depending on the images and the FIJI version, you have to pass by a RGB conversion step
+	// And sometimes, it only rename  the original image, whils in some case it duplicate the image
+	// for no reason. Comment/uncomment the following lines accordingly
+	
+	//run("RGB Color");
+	//selectWindow(image);
+	//run("Close");
+	//selectWindow(image + " (RGB)");
+	
 	rename("image_base");
 	image_height = getHeight();
 	image_width = getWidth();
