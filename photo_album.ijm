@@ -90,8 +90,8 @@ macro " Assisted photo album creator" {
 				Dialog.addSlider("Number of columns", 0, 4, 4);
 			}
 			
-			Dialog.addSlider("Space between column : ", 10, 200, 10);
-			Dialog.addSlider("Space between lines :", 10, 200, 10);
+			Dialog.addSlider("Space between column : ", 10, 200, 25);
+			Dialog.addSlider("Space between lines :", 10, 200, 25);
 			Dialog.addCheckbox("Insert scale bar ?", false);
 			Dialog.addCheckbox("Add annotations ?", false);
 			Dialog.addCheckbox("Insert picture(s) title(s) ?", true);
@@ -229,7 +229,12 @@ macro " Assisted photo album creator" {
 				Dialog.show();
 				
 				pic_title = Dialog.getString();
-				fontsize = img_h/20;
+				if (img_w < img_h) {
+					fontsize = img_w/20;
+				} 
+				else {
+					fontsize = img_h/20;
+				}
 				rec_size = round(lengthOf(pic_title) * (fontsize/2));
 				setColor(255,255,255);
 				//drawRect(0,(img_h-fontsize),rec_size,fontsize);
