@@ -5,7 +5,7 @@
 */
 
 /*
-Macro : assisted collagen orientation and distribution assessment - standalone (calopix)
+Macro : assisted collagen orientation and distribution assessment - standalone
 Version : 0.0.1
 Author : Paul Bonijol
 License : GNU/GPL v3
@@ -40,33 +40,59 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */	
 
 macro "assisted collagen orientation and distribution assessment - standalone" {	
+	Dialog.create("Menu");
+	Dialog.addMessage("Options :");
+	Dialog.addCheckbox("Set reference axis ?", false);
+	Dialog.addCheckbox("Plot (normal values) ? ", false);
+	Dialog.addCheckbox("Plot (corrected values) ? ", false);
+	Dialog.addCheckbox("Save results ? ", false);
+	Dialog.show();
+	
+	draw_line = Dialog.getCheckbox();
+	plot_norm_val = Dialog.getCheckbox();
+	plot_corr_val = Dialog.getCheckbox();
+	save_choice = Dialog.getCheckbox();
+	
+	
+	
+	
+	
+	im_name = getTitle();
 	rename ("img_dir");
 	selectImage("img_dir");
 	image = "img_dir";	
 	run("8-bit");
 	
-	setTool("line"); 
-	waitForUser( "Draw a line as the reference axis and then press OK.");
-	while ((selectionType() !=5)){
-		setTool("line");
-	}
+	if (draw_line == true) {
+		setTool("line"); 
+		waitForUser( "Draw a line as the reference axis and then press OK.");
+		while ((selectionType() !=5)){
+			setTool("line");
+		}
 
-	run("Set Measurements...", "  redirect=None decimal=3");
-	run("Measure");
+		run("Set Measurements...", "  redirect=None decimal=3");
+		run("Measure");
 
-	selectWindow(image);
-	epth_angle = getResult("Angle", 0);
+		selectWindow(image);
+		epth_angle = getResult("Angle", 0);
 
-	if (epth_angle <= -90) {
-		epth_angle += 180;
-	}
+		if (epth_angle <= -90) {
+			epth_angle += 180;
+		}
+		
+		else if (epth_angle >= 90) {
+			epth_angle -= 180 ;	
+		}
+		
+		epth_amount_inv = -epth_angle;
+		run("Clear Results");
 	
-	else if (epth_angle >= 90) {
-		epth_angle -= 180 ;	
 	}
-	
-	epth_amount_inv = -epth_angle;
-	run("Clear Results");
+	else {
+		epth_angle = 0;
+		epth_amount_inv = 0;
+	}
+
 	data_points = 90;
 	data_points_start = -90;
 
@@ -136,9 +162,38 @@ macro "assisted collagen orientation and distribution assessment - standalone" {
 
 	setResult("#", 0, 0);
 	setResult("Dom. Dir. Angle", 0, center_val);
-	setResult("Corr. Angle", 0, epth_angle );
+	setResult("Corr. Angle", 0, epth_angle);
 	setResult("Amount Dom. Dir.", 0, amount_val);
 	setResult("Dispersion",0, std_val);
 	setResult("Goodness", 0, fit_val);
-	updateResults();	
+	updateResults();
+	
+	Array.getStatistics(amount_array, amount_min, amount_max, amount_mean, amount_std);
+	Array.getStatistics(direction_array, dir_min, dir_max, dir_mean, dir_std);
+	Array.getStatistics(direction_array_corrected, dir_corr_min, dir_corr_max, dir_corr_mean, dir_corr_std);
+	
+	if (plot_norm_val == true) {
+		angle_plot_name = "Angle plot";
+		Plot.create(angle_plot_name, "Angle", "Amount", direction_array, amount_array);
+		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
+		Plot.setColor("blue");
+		Plot.add("triangles", direction_array, fit_array);
+		Plot.setColor("red");
+		Plot.show();
+	}
+	
+	if (plot_corr_val == true) {
+		corr_angle_plot_name = "Corrected angle plot";
+		Plot.create(corr_angle_plot_name, "Angle", "Amount", direction_array_corrected, amount_array);
+		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
+		Plot.setColor("green");
+		Plot.add("triangles", direction_array_corrected, fit_array);
+		Plot.setColor("red");
+		Plot.show();
+	}
+	
+	if (save_choice == true) {
+		dir = getDirectory("Choose where to save."); 
+		saveAs("Results",  dir + im_name + ".xls");	
+	}
 }		
