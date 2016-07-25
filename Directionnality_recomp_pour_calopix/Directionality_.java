@@ -129,14 +129,7 @@ public class Directionality_ implements PlugIn {
 		if (null == imp) return;
 		params_from_fit = null;
 		goodness_of_fit = null;
-		bins = prepareBins(nbins);
-		switch (method) {
-		case FOURIER_COMPONENTS:
-			initFourierFields();
-			break;
-		case LOCAL_GRADIENT_ORIENTATION:
-			break;		
-		}
+		bins = prepareBins(nbins);	
 		int n_slices = imp.getStackSize();
 		histograms = new ArrayList<double[]>(n_slices * imp.getNChannels()); 
 		ImageProcessor ip = null;
@@ -147,28 +140,22 @@ public class Directionality_ implements PlugIn {
 			for (int channel_number = 0; channel_number < ip.getNChannels(); channel_number++) {
 				
 				fip = ip.toFloat(channel_number, fip);
-				
-				switch (method) {
-				case FOURIER_COMPONENTS:
-					dir = fourier_component(fip);
-					break;
-				case LOCAL_GRADIENT_ORIENTATION:
-					dir = local_gradient_orientation(fip);
-					break;
-				}
+				dir = local_gradient_orientation(fip);
 				
 				double sum = dir[0];
 				for (int j = 1; j < dir.length; j++) {
 					sum += dir[j];
 				}
+				
 				for (int j = 0; j < dir.length; j++) {
 					dir[j] = dir[j] / sum;
 				}
 				
 				histograms.add( dir );
 			}
-		}
+		}	
 	}
+	
 	public ResultsTable displayResultsTable() {
 		if (null == histograms) 
 			return null;
@@ -324,6 +311,7 @@ public class Directionality_ implements PlugIn {
 		}
 		fit_string = fitter.getFormula();
 	}
+	
 	public void setImagePlus(ImagePlus imp) {
 		this.imp = imp;
 		histograms = null;
@@ -375,40 +363,7 @@ public class Directionality_ implements PlugIn {
 	public AnalysisMethod getMethod() {
 		return method;
 	}
-	private void initFourierFields() {
-		if (null == imp)
-			return;
-		width = imp.getWidth();
-		height = imp.getHeight();
-		if ( width == height) {
-			npadx = 1;
-			npady = 1;
-			long_side = width;
-			small_side = width;
-			step = 0;
-		} else {
-			small_side = Math.min(width, height);
-			long_side  = Math.max(width, height);
-			int npad = long_side / small_side + 1;
-			if (width == long_side) {
-				npadx = npad;
-				npady = 1;
-			} else {
-				npadx = 1;
-				npady = npad;
-			}
-			int delta = (long_side - small_side);
-			step = delta / (npad-1);
-		}
-		pad_size = 2;
-        while(pad_size<small_side) pad_size *= 2;
-		padded_square_block = new FloatProcessor(pad_size, pad_size);
-		window = getBlackmanProcessor(small_side, small_side);
-		window_pixels = (float[]) window.getPixels();
-		r = makeRMatrix(pad_size, pad_size);
-		theta = makeThetaMatrix(pad_size, pad_size);
-		filters = makeFftFilters();
-	}
+
 	private final double[] local_gradient_orientation(final FloatProcessor ip) {
 		final double[] norm_dir = new double[nbins];
 		final FloatProcessor grad_x = (FloatProcessor) ip.duplicate();
@@ -454,127 +409,7 @@ public class Directionality_ implements PlugIn {
 		}
 		return norm_dir;
 	}
-	private final double[] fourier_component(FloatProcessor ip) {
-		final Roi original_square = new Roi((pad_size-small_side)/2, (pad_size-small_side)/2, small_side, small_side); 
-				
-		float[] fpx, spectrum_px;
-		final double[] dir = new double[nbins];
-		ImageProcessor square_block;
-		Roi square_roi;
-		FHT fft, pspectrum;		
-		FloatProcessor small_pspectrum;
-		
-		ImageStack spectra = null;
 
-		
-		FloatProcessor[] hue_arrays = null, saturation_arrays = null;
-
-				
-
-		float max_norm =0.0f;
-
-		for (int ix = 0; ix<npadx; ix++) {
-			
-			for (int iy = 0; iy<npady; iy++) {
-				
-				square_roi = new Roi( ix*step, iy*step, small_side, small_side );
-				ip.setRoi(square_roi);
-				square_block = ip.crop();
-				
-				float[] block_pixels = (float[]) square_block.getPixels();
-				for (int i = 0; i < block_pixels.length; i++) {
-					block_pixels[i] *= window_pixels[i]; 
-				}
-				
-				padded_square_block.setValue(0.0);
-				padded_square_block.fill();
-				padded_square_block.insert(square_block, (pad_size-small_side)/2, (pad_size-small_side)/2);
-				
-				fft = new FHT(padded_square_block);
-				fft.setShowProgress(false);
-				fft.transform();
-				fft.swapQuadrants();
-				
-				pspectrum = fft.conjugateMultiply(fft);
-				pspectrum .setRoi(original_square);
-				small_pspectrum = (FloatProcessor) pspectrum.crop();
-				spectrum_px = (float[]) pspectrum.getPixels();
-				
-
-
-				float[] weights = null, max_weights = null, best_angle = null;
-				FHT tmp;
-				FloatProcessor small_tmp;
-				float[] tmp_px, small_tmp_px;
-				
-
-
-
-				for (int bin=0; bin<nbins; bin++) {
-					
-					fpx = (float[]) filters.getPixels(bin+1);
-					for (int i = 0; i < spectrum_px.length; i++) {
-							
-							dir[bin] += spectrum_px[i] * fpx[i];
-						}							
-				}
-			}
-		}
-		return dir;		
-	}
-	private final ImageStack makeFftFilters() {
-		final ImageStack filters = new ImageStack(pad_size, pad_size, nbins);
-		float[] pixels;
-		
-		final float[] r_px = (float[]) r.getPixels();
-		final float[] theta_px = (float[]) theta.getPixels();
-		
-		double current_r, current_theta, theta_c, angular_part, radial_part;
-		final double theta_bw = Math.PI/(nbins-1);
-		final double r_c = pad_size / 4;
-		final double r_bw = r_c/2;
-				
-		for (int i=1; i<= nbins; i++) {
-			
-			pixels = new float[pad_size*pad_size];
-			theta_c = bins[i-1]+Math.PI/2;
-			
-			for (int index = 0; index < pixels.length; index++) {
-
-				current_r = r_px[index];
-				if ( current_r < FREQ_THRESHOLD || current_r > pad_size/2) {
-					continue;
-				}
-				radial_part = Math.exp( -(current_r-r_c)*(current_r-r_c)/(r_bw*r_bw));
-				
-				current_theta = theta_px[index];
-				if ( Math.abs(current_theta-theta_c) < theta_bw) {
-					angular_part = Math.cos( (current_theta-theta_c) / theta_bw * Math.PI / 2.0) ;
-					angular_part = angular_part * angular_part;
-					
-				} else if ( 
-						Math.abs(current_theta-(theta_c-Math.PI)) < theta_bw
-						|| Math.abs(current_theta-2*Math.PI-(theta_c-Math.PI)) < theta_bw
-						) {
-					angular_part = Math.cos( (current_theta-theta_c) / theta_bw * Math.PI / 2.0) ;
-					if (nbins % 2 == 0) {
-						angular_part = 1 - angular_part * angular_part;
-					} else {
-						angular_part = angular_part * angular_part;
-					}
-				} else 	{
-					continue;
-				}
-				
-				pixels[index] = (float)(angular_part * radial_part); 
-
-			}
-			
-			filters.setPixels(pixels, i);
-			filters.setSliceLabel("Angle: "+String.format("%.1f",theta_c*180/Math.PI), i);
-		}
-		return filters;
-	}
 	private final String[] makeNames() {
 		final int n_slices = imp.getStack().getSize();
 		String[] names;
@@ -609,37 +444,7 @@ public class Directionality_ implements PlugIn {
 		}
 		return names;		
 	}
-	public static final ImagePlus generateColorWheel() {
-		final int cw_height= 256;
-		final int cw_width = cw_height/2;
-		final ColorProcessor color_ip = new ColorProcessor(cw_width, cw_height);
-		FloatProcessor R = makeRMatrix(cw_height, cw_height);
-		FloatProcessor T = makeThetaMatrix(cw_height, cw_height);
-		final Roi half_roi = new Roi(cw_height/2, 0, cw_width, cw_height);
-		R.setRoi(half_roi);
-		R = (FloatProcessor) R.crop();
-		T.setRoi(half_roi);
-		T = (FloatProcessor) T.crop();
-		final float[] r = (float[]) R.getPixels();
-		final float[] t = (float[]) T.getPixels();
-		final byte[] hue = new byte[r.length];
-		final byte[] sat = new byte[r.length];
-		final byte[] bgh = new byte[r.length];
-		for (int i = 0; i < t.length; i++) {
-			if (r[i] > cw_height) {
-				hue[i] = (byte) 255;
-				sat[i] = (byte) 255;
-				bgh[i] = 0;
-			} else {
-				hue[i] = (byte) ( 255 * (t[i]+Math.PI/2)/Math.PI);
-				sat[i] = (byte) ( 255 * r[i]/cw_width);
-				bgh[i] = (byte) 255;
-			}
-		}
-		color_ip.setHSB(hue, sat, bgh);
-		final ImagePlus imp = new ImagePlus("Color wheel", color_ip);
-		return imp;
-	}
+
 	protected static final void addColorMouseListener(final ImageCanvas canvas) {
 
 		MouseMotionListener ml = new MouseMotionListener() {
@@ -664,6 +469,7 @@ public class Directionality_ implements PlugIn {
 			}};
 			canvas.addMouseMotionListener(ml);
 	}
+	
 	protected final static double[] prepareBins(final int n) {
 		final double[] bins = new double[n];
 		for (int i = 0; i < n; i++) {
@@ -692,26 +498,8 @@ public class Directionality_ implements PlugIn {
 		}
 		return log10;
 	}
-	protected static final double[] getBlackmanPeriodicWindow1D(final int n) {
-		final double[] window = new double[n];
-		for (int i = 0; i < window.length; i++) {
-			window[i] = 0.42 - 0.5 * Math.cos(2*Math.PI*i/n) + 0.08 * Math.cos(4*Math.PI/n);
-		}		
-		return window;
-	}
-	protected static  final FloatProcessor getBlackmanProcessor(final int nx, final int ny) {
-		final FloatProcessor bpw = new FloatProcessor(nx, ny);
-		final float[] pixels = (float[]) bpw.getPixels();
-		final double[] bpwx = getBlackmanPeriodicWindow1D(nx);
-		final double[] bpwy = getBlackmanPeriodicWindow1D(nx);
-		int ix,iy;
-		for (int i = 0; i < pixels.length; i++) {
-			iy = i / nx;
-			ix = i % nx;
-			pixels[i] = (float) (bpwx[ix] * bpwy[iy]);
-		}
-		return bpw;
-	}
+
+
 	protected static final FloatProcessor makeRMatrix(final int nx, final int ny) {
 		final FloatProcessor r = new FloatProcessor(nx, ny);
 		final float[] pixels = (float[]) r.getPixels();
