@@ -15,7 +15,8 @@ July 2016
 /*
 In order to work, this macro requires the directionality plugin :
 http://imagej.net/Directionality (included in fiji)
-
+Modified to remove all except the result table (and pool some parameters in it also) :
+https://github.com/paulbnjl/ImageJ-Fiji-macros/tree/master/Directionnality_recomp_pour_calopix
 Many thanks to 	Jean-Yves Tinevez (directionality developper) !
 */
 
@@ -40,6 +41,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */	
 
 macro "assisted collagen orientation and distribution assessment - standalone" {	
+	requires("1.46");
+	showMessage("Warning !", "This macro is highly EXPERIMENTAL, and thus provided WITHOUT ANY WARRANTY. The author has no liability of any sort, and there is no guarantee that the results are accurate.");
 	Dialog.create("Menu");
 	Dialog.addMessage("Options :");
 	Dialog.addCheckbox("Set reference axis ?", false);
@@ -52,10 +55,6 @@ macro "assisted collagen orientation and distribution assessment - standalone" {
 	plot_norm_val = Dialog.getCheckbox();
 	plot_corr_val = Dialog.getCheckbox();
 	save_choice = Dialog.getCheckbox();
-	
-	
-	
-	
 	
 	im_name = getTitle();
 	rename ("img_dir");
@@ -177,7 +176,7 @@ macro "assisted collagen orientation and distribution assessment - standalone" {
 		Plot.create(angle_plot_name, "Angle", "Amount", direction_array, amount_array);
 		Plot.setLimits(dir_corr_min,dir_corr_max,0,amount_max);
 		Plot.setColor("blue");
-		Plot.add("triangles", direction_array, fit_array);
+		Plot.add("square", direction_array, fit_array);
 		Plot.setColor("red");
 		Plot.show();
 	}
