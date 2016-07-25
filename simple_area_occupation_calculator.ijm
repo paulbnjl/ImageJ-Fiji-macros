@@ -34,9 +34,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ####################################################################
 */
 macro "Simple Area Occupation Calculator"{		
-	requires("1.44");	
+	requires("1.46");	
 	showMessage("Warning !", "This macro is highly EXPERIMENTAL, and thus provided WITHOUT ANY WARRANTY. The author has no liability of any sort, and there is no guarantee that the results are accurate.");
+	Dialog.create("Menu");
+	Dialog.addMessage("Options :");
+	Dialog.addCheckbox("Polarisation ? ", false);
+	Dialog.addCheckbox("Save results ? ", false);
+	Dialog.show();
+	pola = Dialog.getCheckbox();
+	save_choice = Dialog.getCheckbox();
+	
 	image = getTitle();
+	
+	selectWindow(image);
+	if (pola == true) {
+		run("Duplicate...", "title=img_orange");
+	}
+	
 	selectWindow(image);	
 	TOTAL_AREA = getHeight()*getWidth();
 	run("8-bit");
@@ -48,18 +62,41 @@ macro "Simple Area Occupation Calculator"{
 	BLACK_AREA = getResult("Area", 0);
 	OCP_RATIO = ((BLACK_AREA/TOTAL_AREA)*100);
 	run("Clear Results");
+	if (pola == true) {
+		selectWindow("img_orange");
+		run("Split Channels");
+		selectWindow("img_orange" + " (blue)");
+		run("Close");
+		selectWindow("img_orange" + " (green)");
+		run("Close");
+		selectWindow("img_orange" + " (red)");
+		run("Auto Threshold...", "method=IsoData white");
+		run("Analyze Particles...", "  show=[Overlay Masks] display exclude include add");
+		
+		ORANGE_AREA = 0;
+		for (i=0; i<nResults; i++) {
+		 ORANGE_AREA += getResult("Area", i);
+		}
+		run("Clear Results");
+		
+		ORANGE_AREA_PERCENTAGE = ((ORANGE_AREA/TOTAL_AREA)*100);
+		
+		GREEN_AREA = TOTAL_AREA - (ORANGE_AREA+(TOTAL_AREA-BLACK_AREA));
+		GREEN_AREA_PERCENTAGE = ((GREEN_AREA/TOTAL_AREA)*100);
+		
+		setResult("Orange (collagen I) area", 0, ORANGE_AREA);
+		setResult("Orange (collagen I) %", 0, ORANGE_AREA_PERCENTAGE);
+		setResult("Green (collagen III) area", 0, GREEN_AREA);
+		setResult("Green (collagen III) %", 0, GREEN_AREA_PERCENTAGE);
+	}
+	
 	setResult("Occupied area", 0, BLACK_AREA);
 	setResult("Total area", 0, TOTAL_AREA);
 	setResult("Occupation %", 0, OCP_RATIO);
-	saveAs("Results",  dir + image  + "_area_" +  ".xls");
+	updateResults();
 	
-	selectWindow(image);
-	for (i=0; i<=number_of_rois; i++) {
-		roiManager("Select", i);
-		roiManager("Draw");
+	if (save_choice == true) {
+		dir = getDirectory("Choose where to save."); 
+		saveAs("Results",  dir + image + ".xls");	
 	}
-	
-	run("8-bit");
-	run("Make Binary");
-	run("Outline");
 }	
