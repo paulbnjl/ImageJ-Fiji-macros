@@ -54,24 +54,29 @@ macro "Simple Area Occupation Calculator"{
 	selectWindow(image);	
 	TOTAL_AREA = getHeight()*getWidth();
 	run("8-bit");
-	run("Auto Threshold", "method=IsoData white");
+	run("Auto Threshold", "method=MinError(I) ignore_black white");
 	run("Set Measurements...", "area redirect=None decimal=3");		
 	run("Create Selection");
 	run("Make Inverse");
 	run("Measure");
-	BLACK_AREA = getResult("Area", 0);
+	BLACK_AREA = TOTAL_AREA - getResult("Area", 0);
 	OCP_RATIO = ((BLACK_AREA/TOTAL_AREA)*100);
 	run("Clear Results");
+	run ("Select None");
+	run("Duplicate...", "title=mask_total");
+	
 	if (pola == true) {
 		selectWindow("img_orange");
 		run("Split Channels");
 		selectWindow("img_orange" + " (blue)");
 		run("Close");
-		selectWindow("img_orange" + " (green)");
-		run("Close");
 		selectWindow("img_orange" + " (red)");
-		run("Auto Threshold...", "method=IsoData white");
-		run("Analyze Particles...", "  show=[Overlay Masks] display exclude include add");
+		run("Auto Threshold...", "method=Otsu ignore_black white");
+		run("Create Selection");
+		run("Make Inverse");
+		run("Measure");
+		run ("Select None");
+		run("Duplicate...", "title=mask_orange");
 		
 		ORANGE_AREA = 0;
 		for (i=0; i<nResults; i++) {
@@ -79,21 +84,39 @@ macro "Simple Area Occupation Calculator"{
 		}
 		run("Clear Results");
 		
-		ORANGE_AREA_PERCENTAGE = ((ORANGE_AREA/TOTAL_AREA)*100);
+		selectWindow("img_orange" + " (green)");
+		rename("green_canal");
+		run("Auto Threshold...", "method=Otsu ignore_black white");
+		imageCalculator("Subtract create 32-bit", "green_canal","mask_orange");
+		selectWindow("Result of green_canal");
+		rename("mask_orange_green");
+
+		run("Make Binary");
+		run("Invert");
+		run("Analyze Particles...", " display exclude include add");
+		GREEN_AREA = 0;
+		for (j=0; j<nResults; j++) {
+			GREEN_AREA += getResult("Area", j);
+		}
+		run("Clear Results");
 		
-		GREEN_AREA = TOTAL_AREA - (ORANGE_AREA+(TOTAL_AREA-BLACK_AREA));
+		ORANGE_AREA_PERCENTAGE = ((ORANGE_AREA/TOTAL_AREA)*100);
 		GREEN_AREA_PERCENTAGE = ((GREEN_AREA/TOTAL_AREA)*100);
+		RATIO_ORANGE_GREEN = ORANGE_AREA_PERCENTAGE/GREEN_AREA_PERCENTAGE; 
 		
 		setResult("Orange (collagen I) area", 0, ORANGE_AREA);
 		setResult("Orange (collagen I) %", 0, ORANGE_AREA_PERCENTAGE);
 		setResult("Green (collagen III) area", 0, GREEN_AREA);
 		setResult("Green (collagen III) %", 0, GREEN_AREA_PERCENTAGE);
+		setResult("Ratio Orange/Green", 0, RATIO_ORANGE_GREEN);
 	}
 	
 	setResult("Occupied area", 0, BLACK_AREA);
 	setResult("Total area", 0, TOTAL_AREA);
 	setResult("Occupation %", 0, OCP_RATIO);
 	updateResults();
+	selectWindow("green_canal");
+	run("Close");
 	
 	if (save_choice == true) {
 		dir = getDirectory("Choose where to save."); 
