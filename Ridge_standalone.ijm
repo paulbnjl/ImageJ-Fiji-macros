@@ -50,8 +50,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ####################################################################
 */
 macro "Ridge detection results processing - standalone "{
-	requires("1.44");	
+	requires("1.48");	
 	showMessage("Warning !", "This macro is highly EXPERIMENTAL, and thus provided WITHOUT ANY WARRANTY. The author has no liability of any sort, and there is no guarantee that the results are accurate.");
+	
+	Dialog.create("Menu");
+	Dialog.addMessage("Options :");
+	Dialog.addCheckbox("Plot values ? ", false);
+	Dialog.addCheckbox("Save results ? ", false);
+	Dialog.show();
+	
+	plot_val = Dialog.getCheckbox();
+	save_choice = Dialog.getCheckbox();
+	
+	
+	
 	image = getTitle();
 	selectWindow(image);
 
@@ -60,7 +72,6 @@ macro "Ridge detection results processing - standalone "{
 	image_height = getHeight();
 	image_width = getWidth();
 	image_area = image_height * image_width;
-	dir = getDirectory("Choose where to save."); 
 
 	run("8-bit");
 	setOption("BlackBackground", false);
@@ -129,6 +140,7 @@ macro "Ridge detection results processing - standalone "{
 	run("Close");
 
 	selectWindow("Junctions");
+	Nb_of_junctions_detected = getValue("results.count");
 	run("Close");
 
 	val_count = 0;
@@ -163,19 +175,33 @@ macro "Ridge detection results processing - standalone "{
 	setResult("Mean length", 0, Mean_obj_length);
 	setResult("Mean width", 0, Mean_obj_width);
 	setResult("Mean angle", 0, Mean_obj_angle);
+	setResult("Number of junctions", 0, Nb_of_junctions_detected);
 	updateResults();
-
-	saveAs("Results",  dir + image  + "_ridge_" + ".xls");
 	
-	selectWindow(image);
-	number_of_rois = (roiManager("count")) - 1 ;
-	setForegroundColor(240, 60, 0);
+	if (plot_val == true) {
+		val_number_fiber_array = newArray("valnumber");
+		for (bb=0; bb<lengthOf(fiber_width_array); bb++){
+			val_number_fiber_array_temp = newArray(lengthOf(val_number_fiber_array)+1);
+			for (b=0; b<lengthOf(val_number_fiber_array); b++){
+			val_number_fiber_array_temp[b] = val_number_fiber_array[b];
+			}
+			val_number_fiber_array_temp[lengthOf(val_number_fiber_array)-1]=bb;
+			val_number_fiber_array = val_number_fiber_array_temp;
+		}
+			
+		val_number_fiber_array	= Array.slice(val_number_fiber_array,1);
+		Array.getStatistics(val_number_fiber_array, val_min, val_max, val_mean, val_std);
+		Array.getStatistics(fiber_width_array, width_min, width_max, width_mean, width_std);
 		
-	for (i=0; i<=number_of_rois; i++) {
-		roiManager("Select", i);
-		roiManager("Draw");
+		fiber_plot_name = "Fiber distribution plot";
+		Plot.create(fiber_plot_name, "Fibers", "Size", val_number_fiber_array, fiber_width_array);
+		Plot.setLimits(val_min,val_max,width_min,width_max);
+		Plot.setColor("red");
+		Plot.show();
+	}	
+	
+	if (save_choice == true) {
+		dir = getDirectory("Choose where to save."); 
+		saveAs("Results",  dir + image + ".xls");	
 	}
-	run("8-bit");
-	run("Make Binary");
-	run("Outline");
 }
