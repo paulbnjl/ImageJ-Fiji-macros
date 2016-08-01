@@ -102,7 +102,7 @@ macro "Cell counter - Feulgen - advanced" {
 	window_x_coord_array = newArray("window_x_start_coord");
 	window_y_coord_array = newArray("window_y_start_coord");
 	
-	for (i=0; i <= ((window_f*window_f)-1); i++) {
+	for (i=0; i <= ((window_f*window_f)-1); i++) {
 		selectWindow("image_red");
 		makeRectangle(pos_x,pos_y, window_w, window_h);
 		run("Duplicate...", "title=ROI");
@@ -232,12 +232,13 @@ macro "Cell counter - Feulgen - advanced" {
 		All results are then stored in arrays and will be retrieved later for the final result table
 	*/
 	
-	run("Analyze Particles...", "size=0-80 circularity=0.86-1.5 display exclude include add");
+	run("Analyze Particles...", "size=3-80 circularity=0.86-1.5 display exclude include add");
 	
 	CELL_TYPE_1_COUNT = nResults;
-
+	CELL_TYPE_1_MEAN_AREA = 0;
 	for (g=0; g<nResults; g++){
 		cell_type_1_area = getResult("Area", g);
+		CELL_TYPE_1_MEAN_AREA += cell_type_1_area;
 		cell_type_1_X = (getResult("X", g));
 		cell_type_1_Y = (getResult("Y", g));
 
@@ -260,6 +261,7 @@ macro "Cell counter - Feulgen - advanced" {
 		cell_type_1_ypos_array = cell_type_1_ypos_array_temp;
 		
 	}
+	CELL_TYPE_1_MEAN_AREA = CELL_TYPE_1_MEAN_AREA/CELL_TYPE_1_COUNT;
 	run("Clear Results");
 	
 	cell_type_1_area_array = Array.slice(cell_type_1_area_array,1);
@@ -296,10 +298,12 @@ macro "Cell counter - Feulgen - advanced" {
 	cell_type_2_xpos_array = newArray("cell type 2 centroid X");
 	cell_type_2_ypos_array = newArray("cell type 2 centroid Y");
 	
-	run("Analyze Particles...", "size=0-80 circularity=0.00-0.85 display exclude include add");
+	run("Analyze Particles...", "size=3-80 circularity=0.00-0.85 display exclude include add");
 	CELL_TYPE_2_COUNT = nResults;
+	CELL_TYPE_2_MEAN_AREA = 0;
 	for (h=0; h<nResults; h++){
 		cell_type_2_area = getResult("Area", h);
+		CELL_TYPE_2_MEAN_AREA += cell_type_2_area;
 		cell_type_2_X = (getResult("X", h));
 		cell_type_2_Y = (getResult("Y", h));
 		
@@ -321,7 +325,7 @@ macro "Cell counter - Feulgen - advanced" {
 		cell_type_2_xpos_array = cell_type_2_xpos_array_temp;
 		cell_type_2_ypos_array = cell_type_2_ypos_array_temp;
 	}
-	
+	CELL_TYPE_2_MEAN_AREA = CELL_TYPE_2_MEAN_AREA/CELL_TYPE_2_COUNT;
 	run("Clear Results");
 	
 	cell_type_2_area_array = Array.slice(cell_type_2_area_array,1);
@@ -354,9 +358,9 @@ macro "Cell counter - Feulgen - advanced" {
 	
 	
 	for (j=0;j<(lengthOf(cell_type_1_ypos_array)-1);j++){
-		setResult("Area (cell type 1 [round])", j, cell_type_1_area_array[j]);
-		setResult("Centroid X (cell type 1)", j, cell_type_1_xpos_array[j]);
-		setResult("Centroid Y (cell type 1)", j, cell_type_1_ypos_array[j]);
+		setResult("Area (cell type 1 [circular])", j, cell_type_1_area_array[j]);
+		//setResult("Centroid X (cell type 1)", j, cell_type_1_xpos_array[j]);
+		//setResult("Centroid Y (cell type 1)", j, cell_type_1_ypos_array[j]);
 	
 		for (jj=0;jj<=window_f;jj++){
 			if (cell_type_1_xpos_array[j] < (jj*window_w)) {
@@ -374,14 +378,14 @@ macro "Cell counter - Feulgen - advanced" {
 
 		list_pos_1 = ((val_y_1 - 1) * window_f) + val_x_1 ;
 		setResult("Corresponding ROI Occupation [cell type 1]", j, occupation_class_array[list_pos_1 -1]);
-		setResult("Position [ROI number] [cell type 1", j, list_pos_1);
+		setResult("Position [ROI number] [cell type 1]", j, list_pos_1);
 	}
 	updateResults();
 	
 	for (k=0;k<(lengthOf(cell_type_2_ypos_array)-1);k++){
-		setResult("Area (cell type 2 [less round])", k, cell_type_2_area_array[k]);
-		setResult("Centroid X (cell type 2)", k, cell_type_2_xpos_array[k]);
-		setResult("Centroid Y (cell type 2)", k, cell_type_2_ypos_array[k]);
+		setResult("Area (cell type 2 [less circular])", k, cell_type_2_area_array[k]);
+		//setResult("Centroid X (cell type 2)", k, cell_type_2_xpos_array[k]);
+		//setResult("Centroid Y (cell type 2)", k, cell_type_2_ypos_array[k]);
 	
 		for (kk=0;kk<=window_f;kk++){
 			if (cell_type_2_xpos_array[k] < (kk*window_w)) {
@@ -412,7 +416,9 @@ macro "Cell counter - Feulgen - advanced" {
 		setResult("Occupation index", k, occupation_class_array[k]);
 	}
 	setResult("Cell type 1 count", 0, CELL_TYPE_1_COUNT);
+	setResult("Cell type 1 mean area", 0, CELL_TYPE_1_MEAN_AREA);
 	setResult("Cell type 2 count", 0, CELL_TYPE_2_COUNT);
+	setResult("Cell type 2 mean area", 0, CELL_TYPE_2_MEAN_AREA);
 	updateResults();
 	
 	selectWindow("Results");
@@ -443,9 +449,9 @@ macro "Cell counter - Feulgen - advanced" {
 	
 	if (plot_val == true) {
 		val_number_cell_type_1_array = newArray("valnumber");
-		for (a=1; a<lengthOf(cell_type_1_area_array); a++){
+		for (a=0; a<=CELL_TYPE_1_COUNT; a++){
 			val_number_cell_type_1_array_temp = newArray(lengthOf(val_number_cell_type_1_array)+1);
-			for (b=0; b<lengthOf(val_number_cell_type_1_array); b++){
+			for (b=0; b<(lengthOf(val_number_cell_type_1_array)-1); b++){
 			val_number_cell_type_1_array_temp[b] = val_number_cell_type_1_array[b];
 			}
 			val_number_cell_type_1_array_temp[lengthOf(val_number_cell_type_1_array)-1]=a;
@@ -463,9 +469,9 @@ macro "Cell counter - Feulgen - advanced" {
 		Plot.show();
 		
 		val_number_cell_type_2_array = newArray("valnumber");
-		for (c=1; c<lengthOf(cell_type_2_area_array); c++){
+		for (c=0; c<=CELL_TYPE_2_COUNT; c++){
 			val_number_cell_type_2_array_temp = newArray(lengthOf(val_number_cell_type_2_array)+1);
-			for (d=0; d<lengthOf(val_number_cell_type_2_array); d++){
+			for (d=0; d<(lengthOf(val_number_cell_type_2_array)-1); d++){
 			val_number_cell_type_2_array_temp[d] = val_number_cell_type_2_array[d];
 			}
 			val_number_cell_type_2_array_temp[lengthOf(val_number_cell_type_2_array)-1]=c;
