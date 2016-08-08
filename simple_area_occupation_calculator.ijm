@@ -115,9 +115,10 @@ macro "Simple Area Occupation Calculator"{
 	setResult("Total area", 0, TOTAL_AREA);
 	setResult("Occupation %", 0, OCP_RATIO);
 	updateResults();
-	selectWindow("green_canal");
-	run("Close");
-	
+	if (pola == true) {
+		selectWindow("green_canal");
+		run("Close");
+	}
 	if (save_choice == true) {
 		dir = getDirectory("Choose where to save."); 
 		saveAs("Results",  dir + image + ".xls");	

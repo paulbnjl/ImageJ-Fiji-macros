@@ -202,6 +202,8 @@ macro "Ridge detection results processing - standalone "{
 	
 	if (save_choice == true) {
 		dir = getDirectory("Choose where to save."); 
-		saveAs("Results",  dir + image + ".xls");	
+		saveAs("Results",  dir + image + ".xls");
+		selectWindow(image);
+		saveAs("png",  dir + image + "_fit_quality_" + ".png");		
 	}
 }

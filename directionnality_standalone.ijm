@@ -195,4 +195,4 @@ macro "assisted collagen orientation and distribution assessment - standalone" {
 		dir = getDirectory("Choose where to save."); 
 		saveAs("Results",  dir + im_name + ".xls");	
 	}
-}		
+}
