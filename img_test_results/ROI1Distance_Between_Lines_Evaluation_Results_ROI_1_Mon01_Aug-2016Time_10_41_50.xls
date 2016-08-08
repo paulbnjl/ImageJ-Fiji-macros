@@ -1,0 +1,4 @@
+ 	Label	Area	X	Y	Perim.	Major	Minor	Angle	Feret	FeretX	FeretY	FeretAngle	MinFeret	Distance
+1	Calcein Green, line : 1	15314	140.345	70.443	1632.972	314.858	61.928	174.155	318.848	0	0	160.201	96.201	0
+2	Calcein Green, line : 2	7643	220.252	249.549	871.713	211.655	45.978	166.170	310.743	0	219	164.890	79.072	0
+3	Distance between lines 1 et 2 : 	0	0.000	0.000	0.000	0.000	0.000	0.000	0.000	0	0	0.000	0.000	196.1224
