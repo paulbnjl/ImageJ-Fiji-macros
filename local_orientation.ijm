@@ -49,7 +49,7 @@ macro "Local Orientation detector" {
 	showMessage("Warning !", "This macro is highly EXPERIMENTAL, and thus provided WITHOUT ANY WARRANTY. The author has no liability of any sort, and there is no guarantee that the results are accurate.");
 	Dialog.create("Menu");
 	Dialog.addMessage("Options :");
-	Dialog.addSlider("ROI number per line/column (LxC): ", 1, 100, 3);
+	Dialog.addSlider("ROI number per line/column (LxC): ", 1, 25, 3);
 	Dialog.addCheckbox("Save results ? ", false);
 	Dialog.show();
 	window_f = Dialog.getNumber();
@@ -190,14 +190,42 @@ macro "Local Orientation detector" {
 		run("Clear Results");
 		selectWindow("image");
 	}
-	for (i=0; i<(window_f*window_f); i++) {
-		setResult("ROI number", i, i+1);
-		setResult("Max angle", i, window_max_angle_array[i]);
-		setResult("Amount of vectors following max angle", i,window_amount_angle_array[i]);
-		setResult("Dispersion around max angle (STDev)", i,window_angle_dispersion_array[i]);
-		setResult("Goodness of fit (gaussian)", i, window_fit_quality_array[i]);
-		setResult("Orientation",i, orientation_class_array[i]);
+	max_angle_avg = 0;
+	amount_avg = 0;
+	dispersion_avg = 0;
+	fit_quality_avg = 0;
+	
+	for (i=1; i<(window_f*window_f)+1; i++) {
+		setResult("ROI number", i-1, i);
+		
+		setResult("Max angle", i-1, window_max_angle_array[i-1]);
+		max_angle_avg += window_max_angle_array[i];
+		
+		setResult("Amount of vectors following max angle", i-1,window_amount_angle_array[i-1]);
+		amount_avg += window_amount_angle_array[i];
+		
+		setResult("Dispersion around max angle (STDev)", i-1,window_angle_dispersion_array[i-1]);
+		dispersion_avg += window_angle_dispersion_array[i-1];
+		
+		setResult("Goodness of fit (gaussian)", i-1, window_fit_quality_array[i-1]);
+		fit_quality_avg += window_fit_quality_array[i-1];
+		
+		setResult("Orientation",i-1, orientation_class_array[i-1]);
 	}
+	
+	max_angle_avg = max_angle_avg/(window_f*window_f);
+	amount_avg = amount_avg/(window_f*window_f);
+	dispersion_avg = dispersion_avg/(window_f*window_f);
+	fit_quality_avg = fit_quality_avg/(window_f*window_f);
+	last_RS_table_POS = (window_f*window_f);
+	
+	setResult("ROI number",last_RS_table_POS, "Average");
+	setResult("Max angle", last_RS_table_POS, max_angle_avg);
+	setResult("Amount of vectors following max angle", last_RS_table_POS, amount_avg);
+	setResult("Dispersion around max angle (STDev)", last_RS_table_POS, dispersion_avg);
+	setResult("Goodness of fit (gaussian)", last_RS_table_POS, fit_quality_avg);
+	setResult("Orientation", last_RS_table_POS, "N/A");
+	
 	updateResults();
 	run("Select None");
 	
