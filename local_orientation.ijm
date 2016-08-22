@@ -159,15 +159,44 @@ macro "Local Orientation detector" {
 		setFont("Arial Narrow", fontsize, "bold");
 		drawString(text_string, (pos_x + (window_w/2)), (pos_y +(window_h/2)));
 		drawRect(pos_x, pos_y, window_w, window_h);
-				
-		init_pos_arrow_x = pos_x + (0.4 * floor(window_w));
-		init_pos_arrow_y = pos_y  + (0.15 * floor(window_h));
-		final_pos_arrow_x = pos_x + (0.6 * floor(window_w));
-		final_pow_arrow_y = init_pos_arrow_y - (tan((round(center_val) * PI)/180) * (final_pos_arrow_x - init_pos_arrow_x));
 		
-		makeArrow(init_pos_arrow_x, init_pos_arrow_y, final_pos_arrow_x, final_pow_arrow_y , "width=1 size=5 color=Black style=Filled");
-		run("Draw");
-		run("Select None");
+		if (std_val <= 31) {
+			init_pos_arrow_x = pos_x + (0.4 * floor(window_w));
+			init_pos_arrow_y = pos_y  + (0.2 * floor(window_h));
+				
+			final_pos_arrow_x = pos_x + (0.6 * floor(window_w));
+			final_pos_arrow_y = init_pos_arrow_y - (tan((round(center_val) * PI)/180) * (final_pos_arrow_x - init_pos_arrow_x));
+			loop_cond = 0;
+			
+			while (loop_cond != 10) {
+				
+				if ((abs(final_pos_arrow_x - init_pos_arrow_x) >= (0.4 * window_w)) || (abs(init_pos_arrow_y - final_pos_arrow_y) >= (0.2 * window_h))) {
+					final_pos_arrow_x = init_pos_arrow_x + 0.5*(final_pos_arrow_x - init_pos_arrow_x);
+					final_pos_arrow_y = init_pos_arrow_y + 0.5*(final_pos_arrow_y - init_pos_arrow_y);
+					loop_cond += 1;
+				}
+				else {
+					
+					loop_cond = 10;
+					break;
+				}
+			}
+			
+			makeArrow(init_pos_arrow_x, init_pos_arrow_y, final_pos_arrow_x, final_pos_arrow_y , "width=1 size=5 color=Black style=Filled");
+			run("Draw");
+			run("Select None");
+		}
+		
+		else {
+			no_orientation_txt = "N/A";
+			init_pos_no_orientation_txt_x = pos_x + (0.5 * floor(window_w));
+			init_pos_no_orientation_txt_y = pos_y  + (0.25 * floor(window_h));
+			selectWindow("ORIENTATION_MAP");
+			fontsize3 = 0.6 * fontsize;
+			setFont("Arial Narrow", fontsize3, "bold");
+			setJustification("center");
+			drawString(no_orientation_txt, init_pos_no_orientation_txt_x, init_pos_no_orientation_txt_y);
+		}
 		
 		selectWindow("ORIENTATION_MAP");
 		setFont("Arial Narrow", fontsize2, "normal");
