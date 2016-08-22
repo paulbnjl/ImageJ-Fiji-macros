@@ -267,8 +267,8 @@ macro "Local Orientation detector" {
 	if (save_choice == true) {
 		dir = getDirectory("Choose where to save.");
 		selectWindow("Results");		
-		saveAs("Results",  dir + image + ".xls");
+		saveAs("Results", dir + "ORIENTATION_MAP" + ".xls");
 		selectWindow("ORIENTATION_MAP");
-		saveAs("png",  dir + image + "_ROI_MAP_" + ".png");
+		saveAs("png", dir + "ORIENTATION_MAP" + ".png");
 	}
 }	
