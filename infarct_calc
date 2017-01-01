@@ -1,0 +1,925 @@
+
+/*
+ * Macro : Section/infarct volume calculation
+ * Version : 1.0
+ * Author : Paul Bonijol
+ * License : GNU/GPL v3
+ * December 2016
+*/
+
+ /*
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// Macro start
+// TODO clean this big mess
+// TODO play with shape descriptors to refine sorting
+// TODO : find a way to detect and flip sections if right area > left area
+
+macro "Infarct volume calculation" {
+
+	function GetTime(){
+		// A little copy/paste of the GetTime macro
+		// to format our results with the current date and time
+	
+		MonthNames = newArray("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec");
+		DayNames = newArray("Sun", "Mon","Tue","Wed","Thu","Fri","Sat");
+		getDateAndTime(year, month, dayOfWeek, dayOfMonth, hour, minute, second, msec);
+		TimeString ="Date: "+DayNames[dayOfWeek]+" ";
+
+		if (dayOfMonth<10) {TimeString = TimeString+"0";
+		}
+		TimeString = TimeString+dayOfMonth+"-"+MonthNames[month]+"-"+year+"\nTime: ";
+
+		if (hour<10) {TimeString = TimeString+"0";
+		}
+		TimeString = TimeString+hour+":";
+
+		if (minute<10) {TimeString = TimeString+"0";
+		}
+		TimeString = TimeString+minute+":";
+	
+		if (second<10) {TimeString = TimeString+"0";
+		}
+		TimeString = TimeString+second;
+	}
+
+	function getAngle(x1, y1, x2, y2) {
+	/*
+	A little copy/paste of the Measure_Angle_And_Length macro
+	To calculate the angle of a line between two point and the image reference axis
+	*/
+		q1=0; q2orq3=2; q4=3;
+		dx = x2-x1;
+		dy = y1-y2;
+		if (dx!=0)
+			angle = atan(dy/dx);
+		else {
+			if (dy>=0)
+			angle = PI/2;
+		else
+			angle = -PI/2;
+		}
+			angle = (180/PI)*angle;
+		if (dx>=0 && dy>=0)
+			quadrant = q1;
+		else if (dx<0)
+			quadrant = q2orq3;
+		else
+			quadrant = q4;
+		if (quadrant==q2orq3)
+			angle = angle+180.0;
+		else if (quadrant==q4)
+			angle = angle+360.0;
+		return angle;
+		}
+
+	function DRAW_ROIs(img, imfill) {
+		ROI_number = (roiManager("count")) - 1 ;
+		roiManager("Show All");
+		for (a=0; a<=ROI_number; a++) {
+			selectWindow(img);
+			roiManager("Select", a);
+			
+			if (imfill==1) {
+				run("Fill");
+			}
+			roiManager("add & draw");
+		}
+		roiManager("reset");	
+	}
+
+	function PROCESS_IMG() {
+		// Dilate and close holes to retrieve a maximum of the sample areas.
+		// Then erode to remove the small outliers
+		
+
+		for (b=0; b<=3; b++) {
+			run("Dilate");
+		}
+		run("Close-");
+		run("Remove Outliers...", "radius=25 threshold=1 which=Bright");
+		run("Close-");				
+	}
+
+	function PROCESS_IMG_ROIS(nb_round_pp_rois) {
+		// Process to remove noise, close shapes and apply a watershed to separate blocks of segmented areas
+		// (otherwise the particle counter will behave strangely))
+
+		run("Remove Outliers...", "radius=5 threshold=1 which=Dark");
+		run("Close-");
+		run("Remove Outliers...", "radius=25 threshold=1 which=Bright");
+		run("Watershed");
+	}
+
+	function THR_MES(plusprocess, image) {
+		selectWindow(image);
+ 	 	getMinAndMax(min, max);
+		setMinAndMax(0.88*max, max); // this is totally arbitrary
+
+		run("8-bit");
+		//selectWindow(image);
+		setAutoThreshold("IsoData ignore_black ignore_white white");
+		setOption("BlackBackground", false);
+		run("Make Binary", "thresholded remaining black");
+
+		if (plusprocess == "yes") {
+			// Dilate and fill holes to retrieve a maximum of the sample volume.		
+
+			PROCESS_IMG();
+		
+	
+			for (b=0; b<=12; b++) {	
+				run("Erode");		
+				}
+			run("Remove Outliers...", "radius=5 threshold=1 which=Dark");
+		
+			for (b=0; b<=6; b++) {
+			run("Close-");
+			}
+		
+			run("Remove Outliers...", "radius=25 threshold=1 which=Bright");		
+		}
+	}
+
+	function calc_montage_size(dir) {
+		final_montage_height = 0;
+		final_montage_width = 0;
+		list = getFileList(dir);
+		for (c=0; c<list.length; c++) {
+			image_to_open = dir + "/" + list[c];
+			open(image_to_open);			
+			montage_h = getHeight();
+			montage_w = getWidth();
+			image_title = getTitle();
+
+			final_montage_height += montage_h;
+
+			if (c == 0) {
+				final_montage_width = montage_w;
+			}
+
+			else if (final_montage_width <= montage_w ) {
+				final_montage_width = montage_w; 				
+			}
+
+			selectWindow(image_title);
+			run("Close");
+		}
+
+		final_montage_height += ((150*list.length+1) + 200); // add enough space for the image names below every each of them + 200 px of safety
+	
+		// Generate the montage area
+		newImage("MONTAGE", "RGB white", (25 + final_montage_width*2), final_montage_height, 1);		
+	}
+
+	// Open directory
+	dir = getDirectory("Choose a Directory ");
+	list = getFileList(dir);
+	
+	// Calculate the dimensions and generate the montage
+	calc_montage_size(dir);
+	// Define some variables
+	format = "jpeg";
+
+	current_list_pos = 0;
+	final_montage_height = 0;
+	final_montage_width = 0; 
+
+	obj_size_thr = 20000; // base value - adjusted to detected object area divided by something when the section will be detected
+	conv_value = 0.985/510; // 985µm per 510 px
+	
+	setForegroundColor(0,0,0);
+	setBackgroundColor(255,255,255);
+
+	// Arrays definition
+	section_area_array = newArray("sections areas");
+	left_side_array = newArray("left side");
+	right_side_array = newArray("right side");
+	left_side_infarct_array = newArray("left side infarct");
+	right_side_infarct_array = newArray("right side infarct");
+
+	percent_infarct_left_array = newArray("% of left side infarct per section ");
+	percent_infarct_right_array = newArray("% of right side infarct per section ");
+
+	total_area_array = newArray("total section area ");
+	total_infarct_array = newArray("total infarct area per section ");
+	total_infarct_percent_array = newArray("% of infarct per whole section ");
+
+
+	// Loop to open and process all images in a given folder
+	for (c=current_list_pos; c<list.length; c++) {
+		
+		// Reset the tissue area at each loop beginning
+		tissue_area_left = 0;	
+		tissue_area_right = 0;		
+		image_to_open = dir + "/" + list[c];
+
+		// Open the image
+		open(image_to_open);
+		image_name = getTitle();
+		image_h = getHeight();
+		image_w = getWidth();
+		min_obj_val = obj_size_thr;
+
+		// Print current image name
+		print("Processing image [" + list[c] +"]");
+
+		// set the scale TODO open a menu asking for the scale and measuring it
+		//run("Set Scale...", "distance=510 known=0.985 unit=mm global");
+		// BUG : if scale is set, all the make/draw functions are behaving uncorrectly for some reason
+		// Instead, measure everyting in px then convert when entering the value in the corresponding list: 510px = 0.985mm (do not forget to pow...)
+		
+		selectWindow(image_name);
+		run("Duplicate...", "title=SECTION_SEGMENTATION_FULL");
+		
+		// Retrieve area and feret diameter, as well as the feret angle
+		selectWindow("SECTION_SEGMENTATION_FULL");
+		THR_MES("yes", "SECTION_SEGMENTATION_FULL");		
+		run("Set Measurements...", "area feret's centroid redirect=None decimal=3");
+		setForegroundColor(0,0,0);
+		setBackgroundColor(255,255,255);
+		run("Analyze Particles...", "size=min_obj_val-Infinity display add");
+		
+		feret_X_value = getResult("FeretX",0);
+		feret_Y_value = getResult("FeretY",0);
+		feret_MIN_value = getResult("MinFeret",0);		
+		feret_diameter_value = getResult("Feret",0);
+		section_area = getResult("Area",0);
+		
+		run("Clear Results");
+		roiManager("reset"); // otherwise we will keep the ROIs from this one and it will lead to weird things
+		run("Select None");
+
+		selectWindow("SECTION_SEGMENTATION_FULL");
+		run("Create Selection");
+		run("Fit Ellipse");
+		run("Measure");		
+
+		centroid_X = getResult("X",0);
+		centroid_Y = getResult("Y",0);
+
+		run("Select None");	
+		run("Clear Results");
+		roiManager("reset"); 
+		
+		// Retrieve the sample angle and then calculate the correction angle
+		angle_value = getAngle(0, 0.5*image_h, centroid_X, centroid_Y);
+
+		// Recalculate the angles before rotation
+		// Note : for imageJ, +angle = rotate clockwise and -angle = anticlockwise
+
+		if (90 <= angle_value && angle_value <= 180) {
+			angle_correction_value = -(-360+(angle_value+180));
+		}
+		
+		else if (180 <= angle_value && angle_value <= 270) {
+			angle_correction_value = angle_value - 180;
+		}
+		
+		else if (270 <= angle_value && angle_value <= 360) {
+			angle_correction_value = -(360-angle_value);
+		}
+
+		else {
+			angle_correction_value = angle_value;
+		}
+
+		// Correct the angle and rotate with the corrected value
+		selectWindow(image_name);
+		run("Rotate... ", "angle=angle_correction_value grid=1 interpolation=Bilinear fill");
+		selectWindow("SECTION_SEGMENTATION_FULL");
+		run("Rotate... ", "angle=angle_correction_value grid=1 interpolation=Bilinear fill");
+	
+		// Rotate modify the image to 16 bit ? Here is a workaround
+		setAutoThreshold("IsoData ignore_black ignore_white white");
+		setOption("BlackBackground", false);
+		run("Make Binary", "thresholded remaining black");
+
+		// Recalculate the minimal object area to count
+		min_obj_val = floor(section_area/2);		
+
+		// Try to generate a mask broad enough and without cropped parts, to obtain the best fit possible before splitting in two
+		// For this we apply a variable number or round of ellipse and convex hull fitting
+		
+		for (i=0; i<1; i++) {
+			selectWindow("SECTION_SEGMENTATION_FULL");
+			run("Analyze Particles...", "size=min_obj_val-Infinity display add");
+			roiManager("Select",0);
+			run("Fit Ellipse");
+			run("Fill");
+			run("Select None");	
+			run("Analyze Particles...", "size=min_obj_val-Infinity center display add");
+			run("Clear Results");
+			roiManager("Select", 0);
+			run("Convex Hull");
+			run("Fill");
+			run("Select None");
+			roiManager("reset");
+		}
+
+		
+		run("Set Measurements...", "feret's redirect=None decimal=3");
+		run("Analyze Particles...", "size=min_obj_val-Infinity center display add");
+
+		feret_diameter_value = getResult("Feret",0);
+		feret_Y_value = getResult("FeretY",0);
+		feret_MIN_value = getResult("MinFeret",0);
+		
+		run("Clear Results");
+
+		// Clean the image from the scale bar, by selecting the section mask and regerating an image using this one		
+		selectWindow(image_name);
+		roiManager("select", 0);
+		run("Copy");
+		run("Clear Results");
+		roiManager("reset");
+		selectWindow("SECTION_SEGMENTATION_FULL");
+		run("Close");
+
+		// Create a new image with the same dimension than the previous one
+		newImage("SECTION_8BIT", "RGB white", image_w, image_h, 1);
+		makeRectangle(feret_X_value, 0, image_w, image_h);
+		run("Paste");
+
+		newImage("SECTION_WITH_MASKS", "RGB white", image_w, image_h, 1);
+		makeRectangle(feret_X_value, 0, image_w, image_h);
+		run("Paste");
+
+		// Recalculate the minimal object area to count
+		min_obj_val = floor(section_area/5000);
+
+		// Increase the feret_MIN_value a little ; it will be used to make the selection around each half part of the brain
+		// The idea of using feret_MIN_value instead of image_h is not to take the scale bar
+		// But sometimes it crops the section a little
+		// So here we add a 5 % margin
+
+		//feret_MIN_value += (0.05*feret_MIN_value);
+
+		// Store the area in an appropriate array, for later
+		section_area_array_temp = newArray(lengthOf(section_area_array)+1);
+		
+		for (d=0; d<lengthOf(section_area_array);d++){
+			section_area_array_temp[d]=section_area_array[d];
+		}
+
+		section_area_array_temp[lengthOf(section_area_array)-1]=section_area * pow(conv_value,2); // store in mm
+		section_area_array = section_area_array_temp;			
+		
+		// Split the image at mid level
+		selectWindow("SECTION_8BIT");
+		image_h = getHeight();
+		image_w = getWidth();
+
+		selectWindow("SECTION_8BIT");
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h); // left side
+		run("Copy");
+
+		newImage("SECTION_8BIT_LEFT", "RGB white", feret_X_value + feret_diameter_value/2, image_h, 1);	
+		selectWindow("SECTION_8BIT_LEFT");
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h);
+		run("Paste");
+
+		selectWindow("SECTION_8BIT");
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h); // left side
+		run("Copy");
+
+		newImage("SECTION_8BIT_LEFT_FULL_AREA", "RGB white", feret_X_value + feret_diameter_value/2, image_h, 1);	
+		selectWindow("SECTION_8BIT_LEFT_FULL_AREA");
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h);
+		run("Paste");
+
+		selectWindow("SECTION_8BIT");
+		makeRectangle(feret_X_value + feret_diameter_value/2, 0, feret_diameter_value/2, image_h); // right side
+		run("Copy");		
+
+		newImage("SECTION_8BIT_RIGHT", "RGB white", feret_X_value + feret_diameter_value, image_h, 1);
+		selectWindow("SECTION_8BIT_RIGHT");
+		makeRectangle(feret_X_value + feret_diameter_value/2 , 0, feret_diameter_value/2, image_h);					
+		run("Paste");
+
+		selectWindow("SECTION_8BIT");
+		makeRectangle(feret_X_value + feret_diameter_value/2, 0, feret_diameter_value/2, image_h); // right side
+		run("Copy");
+
+		newImage("SECTION_8BIT_RIGHT_FULL_AREA", "RGB white", feret_X_value + feret_diameter_value, image_h, 1);
+		selectWindow("SECTION_8BIT_RIGHT_FULL_AREA");
+		makeRectangle(feret_X_value + feret_diameter_value/2 , 0, feret_diameter_value/2, image_h);					
+		run("Paste");			
+		
+		// Close 8bit image, no more necessary at this point
+		selectWindow("SECTION_8BIT");
+		run("Close");
+
+		// Quantify the total area of the left side	
+		selectWindow("SECTION_8BIT_LEFT_FULL_AREA");
+		THR_MES("yes","SECTION_8BIT_LEFT_FULL_AREA" );
+
+		run("Set Measurements...", "area redirect=None decimal=3");
+		setForegroundColor(0,0,0);
+		setBackgroundColor(255,255,255);
+
+		run("Create Selection");
+		roiManager("add");
+		run("Measure");
+		left_side_area = getResult("Area",0);
+		run("Clear Results");
+
+		// Store the total left side area in a array
+		left_side_array_temp = newArray(lengthOf(left_side_array)+1);
+
+		for (e=0; e<lengthOf(left_side_array);e++){
+			left_side_array_temp[e]=left_side_array[e];
+		}
+
+		left_side_array_temp[lengthOf(left_side_array)-1]=left_side_area * pow(conv_value,2); //store in mm
+		left_side_array = left_side_array_temp;
+
+		// Draw the mask in the mask image
+		selectWindow("SECTION_WITH_MASKS");		
+		setForegroundColor(255, 0, 0); // red
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h);
+		DRAW_ROIs("SECTION_WITH_MASKS", 0);
+		selectWindow("SECTION_8BIT_LEFT_FULL_AREA");
+		run("Close");
+
+		// Now, the same but for the right part
+		// I could have generalised this in a function, but, err... Nevermind.
+		selectWindow("SECTION_8BIT_RIGHT_FULL_AREA");
+		THR_MES("yes", "SECTION_8BIT_RIGHT_FULL_AREA");
+
+		run("Set Measurements...", "area redirect=None decimal=3");
+		setForegroundColor(0,0,0);
+		setBackgroundColor(255,255,255);
+
+		run("Create Selection");
+		roiManager("add");
+		run("Measure");
+		
+		right_side_area = getResult("Area",0);
+		run("Clear Results");
+
+		// Store the total right side area in a array
+		right_side_array_temp = newArray(lengthOf(right_side_array)+1);
+		
+		for (ee=0; ee<lengthOf(right_side_array);ee++){
+			right_side_array_temp[ee]=right_side_array[ee];
+		}
+
+		right_side_array_temp[lengthOf(right_side_array)-1]=right_side_area * pow(conv_value,2); // store in mm
+		right_side_array = right_side_array_temp;
+
+		// Draw the mask in the mask image
+		selectWindow("SECTION_WITH_MASKS");		
+		setForegroundColor(255, 0, 0); // red
+		makeRectangle(feret_X_value + (0.5*feret_diameter_value), 0, feret_diameter_value, image_h);
+		DRAW_ROIs("SECTION_WITH_MASKS", 0);
+		selectWindow("SECTION_8BIT_RIGHT_FULL_AREA");
+		run("Close");
+	
+		// Quantify the infarct volume and the good tissue volume on the left
+		// For this we will :
+		// Take the full left side area
+		// Apply a gaussian blur with a kernel of 5px, to help the dilatation/fill holes step to create good segmentation blobs
+		// Threshold and apply some morphomathematic magic to inflate the pixel-dense areas
+		// Quantify the newly created blob, and substract the calculated area from the full area we calculated previously
+
+		selectWindow("SECTION_8BIT_LEFT");
+		
+		for (f=0; f<1; f++) { 
+		// the loop is here to make this expandable if needed
+			selectWindow("SECTION_8BIT_LEFT");
+			run("Gaussian Blur...", "sigma=5");
+		}
+
+		selectWindow("SECTION_8BIT_LEFT");
+		THR_MES("no","SECTION_8BIT_LEFT");
+		PROCESS_IMG_ROIS(3);
+
+		run("Set Measurements...", "area redirect=None decimal=3");
+		setForegroundColor(0,0,0);
+		setBackgroundColor(255,255,255);		
+		run("Analyze Particles...", "size=min_obj_val-Infinity display add");
+		
+		for (g=0; g<nResults; g++){
+			tissue_area_left += getResult("Area", g);
+		}
+
+		left_side_infarct = left_side_area - tissue_area_left; // total area of the left side - the tissue segmented area
+
+		run("Clear Results");
+
+		left_side_infarct_array_temp = newArray(lengthOf(left_side_infarct_array)+1);
+
+		for (h=0; h<lengthOf(left_side_infarct_array);h++){
+			left_side_infarct_array_temp[h]=left_side_infarct_array[h];
+		}
+
+		left_side_infarct_array_temp[lengthOf(left_side_infarct_array)-1]=left_side_infarct * pow(conv_value,2); // store in mm
+		left_side_infarct_array = left_side_infarct_array_temp;
+		
+		selectWindow("SECTION_WITH_MASKS");		
+		setForegroundColor(0, 255, 0); // green
+		makeRectangle(feret_X_value, 0, feret_diameter_value/2, image_h);
+		DRAW_ROIs("SECTION_WITH_MASKS", 1);
+
+		// Close all the left-side windows
+		selectWindow("SECTION_8BIT_LEFT");
+		run("Close");
+
+		// TODO : retrieve the correct masks, to draw them
+		// Store names in a vector
+		
+		// Quantify the infarct volume and the good tissue volume on the right
+		selectWindow("SECTION_8BIT_RIGHT");
+
+		for (ff=0; ff<1; ff++) {
+			selectWindow("SECTION_8BIT_RIGHT");			
+			run("Gaussian Blur...", "sigma=5");
+		}
+
+		selectWindow("SECTION_8BIT_RIGHT");
+		THR_MES("no", "SECTION_8BIT_RIGHT");
+		PROCESS_IMG_ROIS(3);
+
+		run("Set Measurements...", "area redirect=None decimal=3");
+		setForegroundColor(0,0,0);
+		setBackgroundColor(255,255,255);		
+		run("Analyze Particles...", "size=min_obj_val-Infinity display add");
+
+		for (gg=0; gg<nResults; gg++){
+			tissue_area_right += getResult("Area", gg);
+		}
+
+		// To determine the infarct area, we assume that it is in fact the non-segmented area (i.e the areas that are the most empty)
+		// Thus we remove from the total right area the segmented tissue area
+
+		right_side_infarct = right_side_area - tissue_area_right ;
+		run("Clear Results");
+
+		right_side_infarct_array_temp = newArray(lengthOf(right_side_infarct_array)+1);
+
+		for (hh=0; hh<lengthOf(right_side_infarct_array);hh++){
+			right_side_infarct_array_temp[hh]=right_side_infarct_array[hh];
+		}
+
+		right_side_infarct_array_temp[lengthOf(right_side_infarct_array)-1]=right_side_infarct * pow(conv_value,2); // store in mm
+		right_side_infarct_array = right_side_infarct_array_temp;
+		
+		selectWindow("SECTION_WITH_MASKS");		
+		setForegroundColor(0, 255, 0); // green
+		makeRectangle(feret_X_value + (0.5*feret_diameter_value), 0, feret_diameter_value, image_h);
+		DRAW_ROIs("SECTION_WITH_MASKS", 1);
+
+		// Close all the left-side windows
+		selectWindow("SECTION_8BIT_RIGHT");
+		run("Close");
+		selectWindow("Results");
+		run("Close");
+		selectWindow("ROI Manager");
+		run("Close");
+		selectWindow(image_name);
+		run("Close");
+		
+		selectWindow("SECTION_WITH_MASKS");
+		rename(list[c]+ "_mask");
+		save(dir + "/" + list[c] + "_mask");
+		
+		selectWindow(list[c]+ "_mask");
+		run("Close");
+		
+		current_list_pos += 1;
+		print(list[c] + " : " + section_area_array[c]);
+		
+	}
+
+
+	// Now what we truly want is to rank our sections from the lowest area to the highest area
+	// This way we will be able to generate a nice little collage of all the quantified section
+	// Plus a nice little plot of the infarct repartition
+
+	// First we slice the arrays to remove their name definition and have consistency with list.length		
+	section_area_array = Array.trim(section_area_array,list.length);
+	left_side_array = Array.trim(left_side_array,list.length);
+	right_side_array = Array.trim(right_side_array,list.length);
+	left_side_infarct_array = Array.trim(left_side_infarct_array,list.length);
+	right_side_infarct_array = Array.trim(right_side_infarct_array,list.length);
+	
+
+	from_min_to_max_area_values_position_array = Array.rankPositions(section_area_array);
+
+	/*
+	print("noms + areas");
+	for (i=0; i<=list.length-1; i++){
+		print(list[i]);
+		print(section_area_array[i]);
+		print(list[i] + " : " + section_area_array[i]);
+	}
+
+	print("rearranged");
+	for (i=0; i<=from_min_to_max_area_values_position_array.length-1; i++){
+		print(from_min_to_max_area_values_position_array[i]);
+	}
+
+	*/
+
+	y_val = 150;
+
+	// reorganise the list name array, according to the area ranking
+	
+	list_reord_array = newArray("List name array, reordered");
+	for (list_pos_array=0; list_pos_array<=from_min_to_max_area_values_position_array.length-1; list_pos_array++){
+		list_reord_val = list[from_min_to_max_area_values_position_array[list_pos_array]];
+	
+		list_reord_array_temp = newArray(lengthOf(list_reord_array)+1);
+		for (hh=0; hh<lengthOf(list_reord_array);hh++){
+			list_reord_array_temp[hh]=list_reord_array[hh];
+		}
+		list_reord_array_temp[lengthOf(list_reord_array)-1]= list_reord_val;
+		list_reord_array = list_reord_array_temp;
+	}	
+
+	for (list_pos_montage=0; list_pos_montage<=from_min_to_max_area_values_position_array.length-1; list_pos_montage++){
+
+		open(dir + "/" + list[from_min_to_max_area_values_position_array[list_pos_montage]]+ "_mask.jpg");
+		selectWindow(list[from_min_to_max_area_values_position_array[list_pos_montage]] + "_mask.jpg");
+		smask_image_h_2 = getHeight();
+		smask_image_w_2 = getWidth();
+		mask_title = "Mask";
+		makeRectangle(0, 0, smask_image_w_2, smask_image_h_2);
+		run("Copy");
+		
+		selectWindow("MONTAGE");
+		makeRectangle(smask_image_w_2+25, y_val, smask_image_w_2, smask_image_h_2);
+		run("Paste");
+
+		setColor(0);
+		fontsize = 120; 
+		setFont("Arial Narrow", fontsize);
+		setJustification("center");
+		drawString(mask_title, 25 + smask_image_w_2 + smask_image_w_2/2, y_val);
+
+
+		open(dir + "/" + list[from_min_to_max_area_values_position_array[list_pos_montage]]);
+		selectWindow(list[from_min_to_max_area_values_position_array[list_pos_montage]]);
+		smask_image_h_2 = getHeight();
+		smask_image_w_2 = getWidth();
+		smask_image_title_2 = "[" + (list_pos_montage+1) + "]" + getTitle();
+		makeRectangle(0, 0, smask_image_w_2, smask_image_h_2);
+		run("Copy");
+		
+		selectWindow("MONTAGE");
+		makeRectangle(0, y_val, smask_image_w_2, smask_image_h_2);
+		run("Paste");
+
+		
+		setColor(0);
+		fontsize = 120; 
+		setFont("Arial Narrow", fontsize);
+		setJustification("center");
+		drawString(smask_image_title_2, smask_image_w_2/2, y_val);
+		y_val = y_val + 150; // 150 to let some space for the image name text		
+
+		y_val = y_val + (smask_image_h_2);
+
+		selectWindow(list[from_min_to_max_area_values_position_array[list_pos_montage]]+ "_mask.jpg");
+		run("Close");
+
+		selectWindow(list[from_min_to_max_area_values_position_array[list_pos_montage]]);
+		run("Close");
+	}
+	
+	selectWindow("MONTAGE");
+	run("Input/Output...", "jpeg="+50);
+	save(dir + "/" + "Montage.jpg");
+	run("Close");
+
+	// Now we will process a little the results and :
+	// return the total volume for each side [OK]
+	// Return the total section volume [OK]
+	// Return the infarct volume for each side [OK]
+	// Return the section total infarct volume [OK]
+	// Return the % of infarct on each side [OK]
+	// Return the % of infarct for all the section [OK]
+	// Store these % in arrays [OK]
+	// Plot these array to see the evolution of the infarct volume through the sections
+	// Put the results in a result table and save an xls
+
+	// Left side
+	total_left_side_value = 0;
+	total_left_side_infarct_value = 0;
+	for (i=0; i<=left_side_array.length-1; i++) {
+		print("Section total area, left :  [" + list[i] + "] : " + left_side_array[i]);
+		print("Section, infarct area, left :  [" + list[i] + "] : " + left_side_infarct_array[i]);
+
+		left_side_infarct_percent = (left_side_infarct_array[i]*100)/left_side_array[i];
+		
+		percent_infarct_left_array_temp = newArray(lengthOf(percent_infarct_left_array)+1);
+		for (hh=0; hh<lengthOf(percent_infarct_left_array);hh++){
+			percent_infarct_left_array_temp[hh]=percent_infarct_left_array[hh];
+		}
+		percent_infarct_left_array_temp[lengthOf(percent_infarct_left_array)-1]= left_side_infarct_percent;
+		percent_infarct_left_array = percent_infarct_left_array_temp;
+		
+		print("Section, infarct %, left :  [" + list[i] + "] : " + left_side_infarct_percent);			
+
+		total_left_side_value += left_side_array[i];
+		total_left_side_infarct_value += left_side_infarct_array[i];
+	}
+	total_left_infarct_percent = (total_left_side_infarct_value * 100)/total_left_side_value;
+
+	// Right side
+	total_right_side_value = 0;
+	total_right_side_infarct_value = 0;
+	for (i=0; i<=right_side_array.length-1; i++) {
+		print("Section total area, right :  [" + list[i] + "] : " + right_side_array[i]);
+		print("Section, infarct area, right :  [" + list[i] + "] : " + right_side_infarct_array[i]);
+	
+		right_side_infarct_percent = (right_side_infarct_array[i]*100)/right_side_array[i];
+
+		percent_infarct_right_array_temp = newArray(lengthOf(percent_infarct_right_array)+1);
+		for (hh=0; hh<lengthOf(percent_infarct_right_array);hh++){
+			percent_infarct_right_array_temp[hh]=percent_infarct_right_array[hh];
+		}
+		percent_infarct_right_array_temp[lengthOf(percent_infarct_right_array)-1]= right_side_infarct_percent;
+		percent_infarct_right_array = percent_infarct_right_array_temp;
+
+
+		print("Section, infarct %, right :  [" + list[i] + "] : " + right_side_infarct_percent);			
+
+		total_right_side_value += right_side_array[i];
+		total_right_side_infarct_value += right_side_infarct_array[i];
+	}
+	total_right_infarct_percent = (total_right_side_infarct_value * 100)/total_right_side_value;
+
+
+	// Both sides
+	for (i=0; i<=right_side_array.length-1; i++) {
+		total_area_sct = (left_side_array[i] + right_side_array[i]);
+		total_infarct_area_sct = (left_side_infarct_array[i] + right_side_infarct_array[i]);
+		infarct_percent_sct = (total_infarct_area_sct * 100)/total_area_sct;
+
+		print("Total area :  [" + list[i] + "] : " + total_area_sct);
+		print("Total infarct :  [" + list[i] + "] : " + total_infarct_area_sct);
+		print("Infarct % : [" + list[i] +"] :" + infarct_percent_sct);
+
+		total_area_array_temp = newArray(lengthOf(total_area_array)+1);
+		total_infarct_array_temp = newArray(lengthOf(total_area_array)+1);
+		total_infarct_percent_array_temp = newArray(lengthOf(total_infarct_percent_array)+1);
+
+		for (hh=0; hh<lengthOf(total_area_array);hh++){
+			total_area_array_temp[hh]=total_area_array[hh];
+			total_infarct_array_temp[hh]=total_infarct_array[hh];
+			total_infarct_percent_array_temp[hh]=total_infarct_percent_array[hh];
+		}
+
+		total_area_array_temp[lengthOf(total_area_array)-1]= total_area_sct;
+		total_infarct_array_temp[lengthOf(total_infarct_array)-1]= total_infarct_area_sct;
+		total_infarct_percent_array_temp[lengthOf(total_infarct_percent_array)-1]= infarct_percent_sct;
+
+		total_area_array = total_area_array_temp;
+		total_infarct_array = total_infarct_array_temp;
+		total_infarct_percent_array = total_infarct_percent_array_temp;
+
+	}
+
+	percent_infarct_left_array = Array.trim(percent_infarct_left_array,list.length);
+	percent_infarct_right_array = Array.trim(percent_infarct_right_array,list.length);
+
+	//total_area_array = Array.trim(total_area_array,list.length);
+	//total_infarct_array = Array.trim(total_infarct_array,list.length);
+	//total_infarct_percent_array = Array.trim(total_infarct_percent_array,list.length);
+
+	print("Total (all sections) left side area : " + total_left_side_value);	
+	print("Total (all sections) left side INFARCT area : " + total_left_side_infarct_value);
+	print("Left (all sections) side INFARCT % : " + total_left_infarct_percent);
+
+	print("Total (all sections) right side area : " + total_right_side_value);	
+	print("Total (all sections) right side INFARCT area : " + total_right_side_infarct_value);	
+	print("Right (all sections) side INFARCT % : " + total_right_infarct_percent);
+
+	// Total section size and total infarct size
+	total_section_area = total_left_side_value + total_right_side_value;
+	total_infarct_area = total_left_side_infarct_value + total_right_side_infarct_value;
+	total_infarct_percent = (total_infarct_area * 100)/total_section_area;
+	
+	print("Total (all sections) area : " + total_section_area);	
+	print("Total (all sections) INFARCT area : " + total_infarct_area);	
+	print("Total (all sections) INFARCT % : " + total_infarct_percent);
+
+	
+	for (i=0; i<=percent_infarct_left_array.length-1;i++) {
+		print("left % " + percent_infarct_left_array[i]);
+		print("right % " + percent_infarct_right_array[i]);
+		print("total area " + total_area_array[i]);
+		print("total infarct " + total_infarct_array[i]);
+		print(" total infarct % " + total_infarct_percent_array[i]);
+	}
+	
+	left_infarct_reord_array = newArray("Left infarct % array, reordered");
+	for (list_pos_array=0; list_pos_array<=from_min_to_max_area_values_position_array.length-1; list_pos_array++){
+		infarct_left_reord_val = percent_infarct_left_array[from_min_to_max_area_values_position_array[list_pos_array]];
+	
+		left_infarct_reord_array_temp = newArray(lengthOf(left_infarct_reord_array)+1);
+		for (hh=0; hh<lengthOf(left_infarct_reord_array);hh++){
+			left_infarct_reord_array_temp[hh]=left_infarct_reord_array[hh];
+		}
+		left_infarct_reord_array_temp[lengthOf(left_infarct_reord_array)-1]= infarct_left_reord_val;
+		left_infarct_reord_array = left_infarct_reord_array_temp;
+	}
+
+	right_infarct_reord_array = newArray("Right infarct % array, reordered");
+	for (list_pos_array=0; list_pos_array<=from_min_to_max_area_values_position_array.length-1; list_pos_array++){
+		infarct_right_reord_val = percent_infarct_right_array[from_min_to_max_area_values_position_array[list_pos_array]];
+	
+		right_infarct_reord_array_temp = newArray(lengthOf(right_infarct_reord_array)+1);
+		for (hh=0; hh<lengthOf(right_infarct_reord_array);hh++){
+			right_infarct_reord_array_temp[hh]=right_infarct_reord_array[hh];
+		}
+		right_infarct_reord_array_temp[lengthOf(right_infarct_reord_array)-1]= infarct_right_reord_val;
+		right_infarct_reord_array = right_infarct_reord_array_temp;
+	}
+
+	total_infarct_reord_array = newArray("Total infarct % array, reordered");
+	for (list_pos_array=0; list_pos_array<=from_min_to_max_area_values_position_array.length-1; list_pos_array++){
+		total_infarct_val = total_infarct_percent_array[from_min_to_max_area_values_position_array[list_pos_array]];
+	
+		total_infarct_reord_array_temp = newArray(lengthOf(total_infarct_reord_array)+1);
+		for (hh=0; hh<lengthOf(total_infarct_reord_array);hh++){
+			total_infarct_reord_array_temp[hh]=total_infarct_reord_array[hh];
+		}
+		total_infarct_reord_array_temp[lengthOf(total_infarct_reord_array)-1]= total_infarct_val;
+		total_infarct_reord_array = total_infarct_reord_array_temp;
+	}
+
+
+	plot_array = Array.getSequence(list.length+1);
+	plot_array = Array.slice(plot_array, 1, plot_array.length);
+	Plot.create("Infarct_area_evolution", "Image", "%", plot_array, total_infarct_reord_array);
+	
+	Plot.setColor("blue");
+	Plot.add("circles", plot_array, left_infarct_reord_array);
+
+	Plot.setColor("green");
+	Plot.add("triangles", plot_array, right_infarct_reord_array);
+
+	Plot.setColor("red");
+	Plot.setLegend("Total infarct %\tInfarct % (left side)\tInfarct % (right side)...", "bottom-right");
+	Plot.setXYLabels("Images", "%");
+	Plot.setLimitsToFit();
+	Plot.show();
+	save(dir + "/" + "Infarct_area_evolution");
+	selectWindow("Infarct_area_evolution");
+	run("Close");
+
+	// Now store every useful arrays in a result table and export it in xls
+	
+
+	setResult("Image name", 0, "Image name");
+	setResult("Left tissue area (mm2)", 0, "Left tissue area (mm2)");
+	setResult("Right tissue area (mm2)", 0, "Right tissue area (mm2)");
+	setResult("Total tissue area (mm2)", 0, "Total tissue area (mm2)");
+
+	setResult("Left infarct area (mm2)", 0, "Left infarct area (mm2)");
+	setResult("Right infarct area (mm2)", 0, "Right infarct area (mm2)");
+	setResult("Total infarct area (mm2)", 0, "Total infarct area (mm2)");
+
+	setResult("Left infarct area %", 0, "Left infarct area %");
+	setResult("Right infarct area %", 0, "Right infarct area %");
+	setResult("Total infarct area %", 0, "Total infarct area %");
+
+	
+	for (i=1;i<list.length;i++){
+		setResult("Image name", i, list[i]);
+		setResult("Left tissue area (mm2)", i, left_side_array[i]);
+		setResult("Right tissue area (mm2)", i, right_side_array[i]);
+		setResult("Total tissue area (mm2)", i, total_area_array[i]);
+
+		setResult("Left infarct area (mm2)", i, left_side_infarct_array[i]);
+		setResult("Right infarct area (mm2)", i, right_side_infarct_array[i]);
+		setResult("Total infarct area (mm2)", i, total_infarct_array[i]);
+
+		setResult("Left infarct area %", i, percent_infarct_left_array[i]);
+		setResult("Right infarct area %", i, percent_infarct_right_array[i]);
+		setResult("Total infarct area %", i, total_infarct_percent_array[i]);
+	}
+	updateResults();
+	saveAs("Results", dir + "/raw_results" + ".xls");
+	selectWindow("Results");
+	run("Clear Results");
+	run("Close");
+	selectWindow("Log");
+	run("Close");
+}	
+

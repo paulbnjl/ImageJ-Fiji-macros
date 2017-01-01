@@ -1,0 +1,78 @@
+
+
+/*
+ * Macro : Histech stack TIF to JPEG conversion
+ * Version : 1.0
+ * Author : Paul Bonijol
+ * License : GNU/GPL v3
+ * December 2016
+*/
+
+ /*
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// Start of the macro
+
+macro "Histech TIFF stack import and jpeg conversion" {
+	// Open directory
+	dir = getDirectory("Choose a Directory ");
+	list = getFileList(dir);
+	format = "jpeg";
+	image_conc_string = "";
+	current_list_pos = 0;
+    
+	for (i=current_list_pos; i<list.length; i++) {
+		print("Processing image [" + list[i] + "]");
+		print("Current superstring : " + image_conc_string);
+		if (indexOf(image_conc_string, list[i]) < 0) {
+			img_to_open = dir + "/" + list[i]; 
+			run("Bio-Formats Importer", "open=img_to_open autoscale color_mode=Default rois_import=[ROI manager] view=[Standard ImageJ] stack_order=Default");
+			image_name = getTitle();
+			image_h = getHeight();
+			image_w = getWidth();
+			run("Stack to RGB");
+			// Rotate the image by 90° to the right. This is necessary because of the sections alignment on the slides.
+			// TODO : try to find a better way to register images
+			run("Rotate 90 Degrees Right");
+			// Add a scale bar
+			// It seems that the scale stored within the images is not recognised properly.
+			// By measuring the exported scale bar a 510px = 985µm conversion seems to be consistent enough.
+			run("Set Scale...", "distance=509 known=0.985 unit=mm global");
+			run("Scale Bar...", "width=1 height=15 font=40 color=Black background=White location=[Lower Right] bold");
+
+			saveAs(format, dir + image_name + ".jpg");
+			// Concatenate the current image name to the superstring
+			image_conc_string = image_conc_string + image_name;
+			
+			// close the current image
+			selectWindow(image_name);
+			run("Close");
+			selectWindow(image_name + ".jpg");
+			run("Close");
+			
+			// move towards the end of the list
+			current_list_pos += 1;
+
+			// print an end message
+			print("End of processing for [" + list[i] + "]");
+		}
+		else {
+			print ("Skip : [" + list[i] + "]");
+			current_list_pos += 1;
+		}
+	}
+	// Print an global end message
+	print("End of batch processing.");
+}
